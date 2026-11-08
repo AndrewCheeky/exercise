@@ -137,26 +137,32 @@
     arrow.innerHTML = ICONS.arrow; arrow.style.transform = `rotate(${(deg + 180) % 360}deg)`;
     return el('div', {class: 'stat'}, arrow, el('dl', {}, el('dt', {}, 'Wind from'), el('dd', {}, c16, el('small', {}, `${NAMES[c8]} · ${deg}°`))));
   }
-  const stat = (ic, label, value, sub) => el('div', {class: 'stat'}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
+  // Which tile each "Why this score" reason belongs to, so those tiles can be shaded.
+  const REASON_TILE = [[/thunder|rain|wet from|downpour/i, 'rain'], [/heat stress/i, 'feels'], [/hot|warm/i, 'temp'],
+    [/humid|sticky|oppressive/i, 'humidity'], [/windy|gust/i, 'wind'], [/sun/i, 'uv'], [/air quality/i, 'air']];
+  const flaggedTiles = reasons => new Set(reasons.flatMap(r => REASON_TILE.filter(([re]) => re.test(r)).slice(0, 1).map(([, k]) => k)));
+  let FLAG = new Set();
+  const stat = (ic, label, value, sub, key) => el('div', {class: 'stat' + (key && FLAG.has(key) ? ' flag' : ''), title: key && FLAG.has(key) ? 'This lowered the score' : null}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
 
   function card(key, w, day) {
     const s = w && w.scores && w.scores[sport], m = w && w.metrics;
     const head = el('div', {class: 'when'}, el('h3', {}, icon(WIN[key].icon), WIN[key].label), el('p', {}, `${WIN[key].times}${m && m.condition ? ' · ' + m.condition : ''}`));
     if (!s || !m) return el('article', {class: 'win'}, el('div', {class: 'win-top'}, head), el('p', {class: 'why'}, 'No forecast for this window yet.'));
+    FLAG = flaggedTiles(s.reasons);
     return el('article', {class: 'win ' + s.band},
       el('div', {class: 'win-top'}, head, ring(s.index, s.band, 64)),
       el('p', {class: 'verdict'}, `${WORD[s.band]} · ${s.advice}`),
       el('ul', {class: 'tips'}, tips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
-      s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · ')) : null,
+      s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
       el('dl', {class: 'stats'},
-        stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`),
-        stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m)),
-        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 ? 'very humid' : m.rh >= 75 ? 'humid' : 'comfortable'),
-        stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry'),
-        stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : ''),
+        stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`, 'temp'),
+        stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m), 'feels'),
+        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 ? 'very humid' : m.rh >= 75 ? 'humid' : 'comfortable', 'humidity'),
+        stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry', 'rain'),
+        stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : '', 'wind'),
         windDir(m.windDirDeg),
-        stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : ''),
-        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '')));
+        stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : '', 'uv'),
+        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air')));
   }
 
   function renderHourly(day) {

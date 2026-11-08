@@ -83,6 +83,13 @@ a{color:var(--orange)}
 .stat .ico{color:var(--muted);width:20px;height:20px;margin-top:2px}
 .stat dt{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:800}
 .stat dd{margin:1px 0 0;font-weight:600;font-size:19px}
+.stat.flag{background:var(--caution-soft);box-shadow:inset 3px 0 0 var(--caution)}
+.win.avoid .stat.flag{background:var(--avoid-soft);box-shadow:inset 3px 0 0 var(--avoid)}
+.stat.flag .ico,.stat.flag dt{color:#8a5400}
+.win.avoid .stat.flag .ico,.win.avoid .stat.flag dt{color:#9a2018}
+.flag-key{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+.flag-key::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--caution-soft);box-shadow:inset 3px 0 0 var(--caution);margin-right:6px;vertical-align:-1px}
+.win.avoid .flag-key::before{background:var(--avoid-soft);box-shadow:inset 3px 0 0 var(--avoid)}
 .stat dd small{display:block;font-weight:600;color:var(--muted);font-size:12px}
 .ring text{font-family:inherit;font-weight:900}
 
