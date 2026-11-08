@@ -54,9 +54,16 @@ async function loadLocations() {
   if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !MOCK) {
     try {
       const token = await sheetToken();
-      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(SHEET_ID)}/values/${encodeURIComponent(SHEET_TAB + '!A1:G500')}`,
-        {headers: {authorization: 'Bearer ' + token}, signal: AbortSignal.timeout(30000)});
-      if (!res.ok) throw Error(`HTTP ${res.status}`);
+      const auth = {headers: {authorization: 'Bearer ' + token}, signal: AbortSignal.timeout(30000)};
+      // Find the tab whatever its capitalisation or stray spaces.
+      const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(SHEET_ID)}?fields=sheets.properties.title`, auth);
+      if (!meta.ok) throw Error(`could not open the sheet (HTTP ${meta.status}): ${(await meta.text()).slice(0, 200)}`);
+      const titles = ((await meta.json()).sheets || []).map(x => x.properties.title);
+      const tab = titles.find(t => t.trim().toLowerCase() === SHEET_TAB.trim().toLowerCase());
+      if (!tab) throw Error(`no tab named "${SHEET_TAB}". Tabs found: ${titles.join(', ')}`);
+      const range = `'${tab.replace(/'/g, "''")}'!A1:G500`;
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(SHEET_ID)}/values/${encodeURIComponent(range)}`, auth);
+      if (!res.ok) throw Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
       const [head = [], ...rows] = (await res.json()).values || [];
       list = rowsToLocations(head, rows.filter(r => r.some(x => String(x).trim())));
       console.log(`LOCATIONS: ${list.length} rows from the "${SHEET_TAB}" tab`);
