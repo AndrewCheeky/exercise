@@ -69,8 +69,8 @@ export function aqiCategory(aqi) {
     : aqi <= 200 ? 'Unhealthy' : aqi <= 300 ? 'Very unhealthy' : 'Hazardous';
 }
 
-/** Go Index 0–10 (7–10 Go, 5–6 Caution, 0–4 Avoid) with the reasons that lowered it. sport: 'run' | 'cycle' */
-export function goIndex(m, aq, isEvening, sport = 'run') {
+/** Go Index 0–10 (7–10 Go, 5–6 Caution, 0–4 Avoid) with the reasons that lowered it. sport: 'mixed' (default, as the email) | 'run' | 'cycle' */
+export function goIndex(m, aq, isEvening, sport = 'mixed') {
   if (!m || !m.hasData) return {index: 0, reasons: ['No forecast data']};
   const R = RULES, reasons = [];
   let s = 10;
@@ -99,7 +99,8 @@ export function goIndex(m, aq, isEvening, sport = 'run') {
   }
   if (m.airDensityScore != null) {
     if (sport === 'cycle') { if (m.airDensityScore >= 8) s += 1; if (m.airDensityScore <= 3) hit(1, 'Dense air (more drag)'); }
-    else if (m.airDensityScore >= 8) hit(1, 'Thin, warm air');
+    else if (sport === 'run') { if (m.airDensityScore >= 8) hit(1, 'Thin, warm air'); }
+    else { if (m.airDensityScore >= 9) s += 1; if (m.airDensityScore <= 2) hit(1, 'Dense air'); }   // mixed, as the email
   }
   if (lightning) s = Math.min(s, R.LIGHTNING_CAP);
   return {index: Math.max(0, Math.min(10, Math.round(s))), reasons};

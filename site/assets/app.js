@@ -10,7 +10,6 @@
   // Simple line icons (24×24, drawn for this site).
   const P = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICONS = {
-    shoe: P('<path d="M3 16h15.5a2.5 2.5 0 0 0 0-5L13 9.5 11 6H8l.5 3.5L5 11v5"/><path d="M3 19h18"/>'),
     bike: P('<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l3 7h-3M14 6h2"/>'),
     pin: P('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
     sunrise: P('<path d="M17 18a5 5 0 0 0-10 0M12 3v6M8.5 6.5 12 3l3.5 3.5M3 18h18M4.2 12.2l1.4 1.4M18.4 13.6l1.4-1.4"/>'),
@@ -62,24 +61,24 @@
     return svg;
   }
 
-  let data = null, place = store.get('rr.place', ''), sport = store.get('rr.sport', 'run'), dayIdx = 0;
+  let data = null, place = store.get('rr.place', ''), dayIdx = 0;
+  const sport = 'mixed';   // one score for running, walking and riding (the email's mixed mode)
   const loc = () => data && (data.locations.find(l => l.key === place) || data.locations[0]);
-  const verb = () => sport === 'cycle' ? 'ride' : 'run';
 
   // Practical, friendly tips for a window (max 3), from the forecast numbers.
   function tips(key, w, day) {
-    const m = w.metrics || {}, out = [], ride = sport === 'cycle';
+    const m = w.metrics || {}, out = [];
     const sunrise = hours(day.sunrise), sunset = hours(day.sunset);
-    if (key === 'am' && day.sunrise && WIN.am.start < sunrise) out.push(['light', ride ? `Lights on, front and back: it's dark until ${clock(day.sunrise)}.` : `It's dark until ${clock(day.sunrise)}. Wear something bright or reflective.`]);
-    if (key === 'pm' && day.sunset && WIN.pm.end > sunset) out.push(['light', ride ? `Sunset is ${clock(day.sunset)}. Pack lights for the ride home.` : `Sunset is ${clock(day.sunset)}. Be seen on the last stretch.`]);
+    if (key === 'am' && day.sunrise && WIN.am.start < sunrise) out.push(['light', `It's dark until ${clock(day.sunrise)}. Wear something bright; riders, lights on front and back.`]);
+    if (key === 'pm' && day.sunset && WIN.pm.end > sunset) out.push(['light', `Sunset is ${clock(day.sunset)}. Be seen on the way home; riders, pack lights.`]);
     if (m.lightningPct >= 50) out.push(['bolt', 'Thunder is forecast. Stay close to shelter, or take it indoors.']);
-    else if (m.precipPct >= 50) out.push(['road', ride ? 'Wet roads likely. Brake earlier and steer clear of painted lines.' : 'Showers likely. A light layer helps, and watch for slippery spots.']);
+    else if (m.precipPct >= 50) out.push(['road', 'Showers likely. Watch for slippery spots; riders, brake earlier and avoid painted lines.']);
     if (m.wbgt >= 28) out.push(['bottle', 'Heat stress risk. Go shorter, sip water often, rest in the shade.']);
     else if (m.dewPointC >= 22 || m.rh >= 82) out.push(['bottle', `Sticky air (${m.rh}% humidity). Bring water and ease the pace a little.`]);
     if (m.uvEffective >= 6) out.push(['cap', 'Strong sun. Cap, sunglasses and sunscreen.']);
-    if (ride && (m.windGustKmh >= 30 || m.gustDelta >= 10)) out.push(['wind', `Gusts to ${m.windGustKmh} km/h. Keep a firm grip on descents.`]);
+    if (m.windGustKmh >= 30 || m.gustDelta >= 10) out.push(['wind', `Gusts to ${m.windGustKmh} km/h. Riders, keep a firm grip on descents.`]);
     if (w.air && w.air.hasData && w.air.aqi > 50) out.push(['leaf', `Air quality is ${w.air.category.toLowerCase()}. Take it easier if you're sensitive.`]);
-    if (!out.length || (out.length === 1 && out[0][0] === 'light' && w.scores[sport].band === 'go')) out.push(['smile', `Conditions look kind. Enjoy your ${verb()}!`]);
+    if (!out.length || (out.length === 1 && out[0][0] === 'light' && w.scores[sport].band === 'go')) out.push(['smile', 'Conditions look kind. Enjoy getting out!']);
     return out.slice(0, 3);
   }
 
@@ -97,10 +96,10 @@
       upcoming.push({d, di, k, s, w});
     }));
     const next = upcoming[0];
-    if (!next) { $('headline').textContent = `No forecast yet for your next ${verb()}.`; $('next').hidden = true; return; }
+    if (!next) { $('headline').textContent = 'No forecast yet for your next window.'; $('next').hidden = true; return; }
     const when = x => `${x.d.date === now.date ? (x.k === 'am' ? 'This morning' : 'This evening') : x.di === 1 || x.d.date > now.date ? (x.k === 'am' ? (x.d.date === nextDate(now.date) ? 'Tomorrow morning' : dayName(x.d.date, {weekday: 'long'}) + ' morning') : (x.d.date === nextDate(now.date) ? 'Tomorrow evening' : dayName(x.d.date, {weekday: 'long'}) + ' evening')) : ''}`;
     const best = upcoming.slice(0, 3).reduce((a, b) => b.s.index > a.s.index ? b : a, next);
-    $('headline').textContent = next.s.band === 'go' ? `Great time for a ${verb()}: ${when(next).toLowerCase()}.` : next.s.band === 'caution' ? `${when(next)} is doable, with care.` : `${when(next)} looks rough. Plan around it.`;
+    $('headline').textContent = next.s.band === 'go' ? `Great time to get out: ${when(next).toLowerCase()}.` : next.s.band === 'caution' ? `${when(next)} is doable, with care.` : `${when(next)} looks rough. Plan around it.`;
     const box = $('next');
     box.replaceChildren(ring(next.s.index, next.s.band, 60, true),
       el('div', {}, el('strong', {}, `${when(next)} · ${WIN[next.k].times}`), el('span', {}, next.s.advice),
@@ -162,15 +161,6 @@
     renderHourly(day);
   }
 
-  function setSport(s) {
-    sport = s === 'cycle' ? 'cycle' : 'run'; store.set('rr.sport', sport);
-    document.body.dataset.sport = sport;
-    $('hero-art').src = sport === 'cycle' ? 'assets/hero-ride.svg' : 'assets/hero-run.svg';
-    document.querySelectorAll('.sport button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sport === sport)));
-    render();
-  }
-  document.querySelectorAll('.sport button').forEach(b => b.addEventListener('click', () => setSport(b.dataset.sport)));
-
   async function load() {
     try {
       const res = await fetch('data/forecast.json?t=' + Date.now(), {cache: 'no-store'});
@@ -185,7 +175,7 @@
     const gen = new Date(data.generatedAt);
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
     if (Date.now() - gen.getTime() > 8 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 8 hours old. The latest update may have failed.'; $('stale').hidden = false; }
-    setSport(sport);
+    render();
   }
   load();
 })();

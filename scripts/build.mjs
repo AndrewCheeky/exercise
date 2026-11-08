@@ -165,7 +165,7 @@ async function main() {
         const air = aqWindow(aq[li], day, win.start, win.end);
         const isPm = key === 'pm';
         const scores = {};
-        for (const sport of ['run', 'cycle']) {
+        for (const sport of ['mixed', 'run', 'cycle']) {
           const g = goIndex(m, air, isPm, sport);
           scores[sport] = {index: g.index, band: band(g.index), reasons: g.reasons, advice: advice(g.index, !isPm, m)};
         }
@@ -175,7 +175,7 @@ async function main() {
       return entry;
     });
     result.locations.push({key: loc.key, name: loc.name, area: loc.area || '', sport: loc.sport, lat: loc.lat, lon: loc.lon, days});
-    console.log(`${loc.name}: ${days.map(d => `${d.date.slice(5)} AM ${d.windows.am.scores.run.index} PM ${d.windows.pm.scores.run.index}`).join(' | ')}`);
+    console.log(`${loc.name}: ${days.map(d => `${d.date.slice(5)} AM ${d.windows.am.scores.mixed.index} PM ${d.windows.pm.scores.mixed.index}`).join(' | ')}`);
   });
   await mkdir(resolve(OUT, 'data'), {recursive: true});
   await cp('site', OUT, {recursive: true});
