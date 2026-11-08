@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 560" preserveAspectRatio="xMidYMid slice" role="img" aria-label="A cyclist riding a hill road at sunrise, with mountains behind">
+  <defs>
+    <linearGradient id="skyr" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2a44"/>
+      <stop offset=".5" stop-color="#d9480f"/>
+      <stop offset=".8" stop-color="#fc6a1e"/>
+      <stop offset="1" stop-color="#ffc078"/>
+    </linearGradient>
+    <radialGradient id="sunr" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff3d6"/>
+      <stop offset=".6" stop-color="#ffd08a"/>
+      <stop offset="1" stop-color="#ffd08a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="560" fill="url(#skyr)"/>
+  <circle cx="1130" cy="290" r="210" fill="url(#sunr)"/>
+  <circle cx="1130" cy="290" r="66" fill="#fff1d0"/>
+  <!-- layered hills -->
+  <path d="M0 300 C160 240 300 280 440 236 C600 186 760 256 900 222 C1060 184 1200 250 1360 214 C1460 192 1540 206 1600 220 L1600 400 L0 400Z" fill="#8f3b25" opacity=".55"/>
+  <path d="M0 360 C200 300 380 350 560 310 C760 266 920 336 1120 300 C1300 268 1460 316 1600 296 L1600 440 L0 440Z" fill="#62291f" opacity=".85"/>
+  <!-- winding road -->
+  <path d="M0 470 C300 440 520 400 800 420 C1080 440 1300 410 1600 380 L1600 560 L0 560Z" fill="#241a20"/>
+  <path d="M0 506 C300 478 520 440 800 458 C1080 476 1300 448 1600 420" stroke="#fc6a1e" stroke-width="4" stroke-dasharray="40 30" fill="none" opacity=".75"/>
+  <!-- trees -->
+  <g fill="#1a1216">
+    <path d="M1320 404 l26 -80 l26 80z"/><rect x="1342" y="400" width="8" height="18"/>
+    <path d="M1400 396 l20 -62 l20 62z"/><rect x="1416" y="392" width="7" height="16"/>
+    <path d="M140 470 l30 -92 l30 92z"/><rect x="165" y="466" width="9" height="20"/>
+  </g>
+  <!-- cyclist (original stylised figure) -->
+  <g transform="translate(1010 296)" stroke="#16101a" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <circle cx="20" cy="118" r="44" stroke-width="9"/>
+    <circle cx="176" cy="118" r="44" stroke-width="9"/>
+    <path d="M20 118 L74 118 L130 62 L62 62 Z M74 118 L52 52 M130 62 L176 118 M124 44 L132 62" stroke-width="8"/>
+    <path d="M40 50 L64 50" stroke-width="8"/>
+    <path d="M116 40 L140 40" stroke-width="8"/>
+    <circle cx="112" cy="-12" r="16" fill="#16101a" stroke="none"/>
+    <path d="M100 6 L56 40" stroke-width="20"/>
+    <path d="M98 12 L124 42" stroke-width="11"/>
+    <path d="M58 44 L92 74 L76 112" stroke-width="13"/>
+    <path d="M60 46 L66 90 L86 100" stroke-width="12" opacity=".85"/>
+  </g>
+  <ellipse cx="1108" cy="464" rx="110" ry="8" fill="#000" opacity=".25"/>
+</svg>

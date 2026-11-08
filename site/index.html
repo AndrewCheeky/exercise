@@ -3,58 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RunRide Jamaica | Running and cycling weather</title>
-<meta name="description" content="When to run or ride: morning and evening outdoor exercise forecasts for places around Jamaica.">
-<meta name="theme-color" content="#0b3b2e">
+<title>RunRide Jamaica | When to run or ride</title>
+<meta name="description" content="Your best time to run or ride around Jamaica: friendly morning and evening forecasts for heat, rain, storms, sun and air quality.">
+<meta name="theme-color" content="#242428">
 <link rel="preload" href="assets/fonts/montserrat-latin.woff" as="font" type="font/woff" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=1.0.0">
+<link rel="stylesheet" href="assets/style.css?v=2.0.0">
 </head>
-<body>
-<header class="top">
-  <div class="wrap top-inner">
-    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">◐</span><span><strong>RunRide</strong> <small>JAMAICA</small></span></a>
-    <div class="sport" role="group" aria-label="Activity">
-      <button type="button" data-sport="run" aria-pressed="true">Run</button>
-      <button type="button" data-sport="cycle" aria-pressed="false">Ride</button>
+<body data-sport="run">
+<header class="hero">
+  <img class="hero-art" id="hero-art" src="assets/hero-run.svg" alt="">
+  <div class="hero-shade" aria-hidden="true"></div>
+  <div class="wrap hero-top">
+    <a class="brand" href="./" aria-label="RunRide Jamaica home"><span class="brand-dot" aria-hidden="true"></span><span>RunRide</span><small>JAMAICA</small></a>
+    <div class="sport" role="group" aria-label="Choose run or ride">
+      <button type="button" data-sport="run" aria-pressed="true"><span class="ico" data-icon="shoe"></span>Run</button>
+      <button type="button" data-sport="cycle" aria-pressed="false"><span class="ico" data-icon="bike"></span>Ride</button>
     </div>
+  </div>
+  <div class="wrap hero-body">
+    <p class="greeting" id="greeting">Hello</p>
+    <h1 id="headline">Finding your best time to get out…</h1>
+    <div class="next" id="next" hidden></div>
+    <label class="place">
+      <span class="ico" data-icon="pin"></span>
+      <span class="sr-only">Place</span>
+      <select id="place" aria-label="Place"></select>
+    </label>
   </div>
 </header>
 
 <main class="wrap">
-  <section class="intro">
-    <h1>When to get out <em>today.</em></h1>
-    <p>Morning and evening windows rated for heat, humidity, rain, storms, sun, wind and air quality.</p>
-  </section>
-
-  <section class="controls">
-    <label for="place">Place</label>
-    <select id="place"></select>
-    <p class="updated" id="updated">Loading forecast…</p>
-  </section>
-
   <p class="banner" id="stale" hidden></p>
 
-  <nav class="days" id="days" aria-label="Choose a day"></nav>
+  <section class="section">
+    <div class="section-head">
+      <h2>This week</h2>
+      <p class="updated" id="updated">Loading…</p>
+    </div>
+    <nav class="days" id="days" aria-label="Choose a day"></nav>
+  </section>
 
   <section class="windows" id="windows" aria-live="polite"></section>
 
-  <details class="hourly" id="hourly-wrap">
-    <summary>Hour by hour</summary>
+  <details class="hourly">
+    <summary><span class="ico" data-icon="clock"></span>Hour by hour</summary>
     <div class="table-scroll"><table id="hourly"></table></div>
   </details>
 
   <section class="explain">
-    <h2>How the index works</h2>
-    <p><strong>7–10 Go · 5–6 Caution · 0–4 Avoid.</strong> Each window starts at 10 and loses points for heat, humidity, rain, thunderstorms, heat stress (WBGT), sticky dew points, strong sun, gusts, recent or heavy rain and poor air quality. Thunderstorms or dangerous heat cap it at 4. Riding uses the same rules, plus small changes for air density and rain just after the window.</p>
-    <p>Windows: morning 4:30–7:00 AM, evening 4:30–6:30 PM, Jamaica time.</p>
+    <h2>How we rate your window</h2>
+    <div class="scale">
+      <span class="pill go">7–10 Go</span><span class="pill caution">5–6 Take care</span><span class="pill avoid">0–4 Skip it</span>
+    </div>
+    <p>Each window starts at 10 and loses points for heat, humidity, rain, thunderstorms, heat stress, sticky air, strong sun, gusts, wet roads and poor air quality. Thunderstorms or dangerous heat cap it at 4. Ride scores also allow for air density and rain just after you finish.</p>
+    <p>Morning window 4:30–7:00 AM, evening window 4:30–6:30 PM, Jamaica time.</p>
   </section>
 </main>
 
 <footer class="foot">
   <div class="wrap">
-    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> weather and air quality (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>). Guidance only: listen to your body and check conditions before you go.</p>
+    <p><strong>RunRide Jamaica</strong> · Forecasts from <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> weather and air quality (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>).</p>
+    <p>Guidance only. Listen to your body, carry water, and be seen.</p>
   </div>
 </footer>
-<script src="assets/app.js?v=1.0.0"></script>
+<script src="assets/app.js?v=2.0.0"></script>
 </body>
 </html>
