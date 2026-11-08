@@ -3,6 +3,7 @@
 // Forecasts: Open-Meteo weather + air quality (free, CC BY 4.0), one batched request each.
 import {readFile, writeFile, mkdir, cp} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createSign} from 'node:crypto';
 import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy} from './index-rules.mjs';
 
 const TZ = 'America/Jamaica';
@@ -25,10 +26,44 @@ function parseCsv(text) {
 }
 const slug = s => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+// Same Google Sheet as Marine Weather Jamaica, read with the same service account (read only).
+const SHEET_ID = process.env.SHEET_ID || '1JA-38rcUE6yudktWxqHf9ijZtlX9pfLYbDocLKQmHpA';
+const SHEET_TAB = process.env.SHEET_TAB || 'exercise';
+const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+async function sheetToken() {
+  const cred = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  if (!cred.client_email || !cred.private_key) throw Error('service-account JSON is missing its email or private key');
+  const now = Math.floor(Date.now() / 1000);
+  const head = b64({alg: 'RS256', typ: 'JWT'}), body = b64({iss: cred.client_email, scope: 'https://www.googleapis.com/auth/spreadsheets.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3500});
+  const signer = createSign('RSA-SHA256'); signer.update(head + '.' + body); signer.end();
+  const res = await fetch('https://oauth2.googleapis.com/token', {method: 'POST', headers: {'content-type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: head + '.' + body + '.' + signer.sign(cred.private_key, 'base64url')}), signal: AbortSignal.timeout(20000)});
+  if (!res.ok) throw Error(`Google sign-in failed (HTTP ${res.status})`);
+  return (await res.json()).access_token;
+}
+function rowsToLocations(head, rows) {
+  const col = Object.fromEntries(head.map((h, i) => [String(h).trim().toLowerCase(), i]));
+  for (const k of ['name', 'lat', 'lon']) if (!(k in col)) throw Error(`the "${SHEET_TAB}" tab is missing a "${k}" column`);
+  return rows.map(r => ({name: String(r[col.name] ?? '').trim(), lat: Number(r[col.lat]), lon: Number(r[col.lon]),
+    area: col.area != null ? String(r[col.area] ?? '').trim() : '', sport: col.sport != null ? String(r[col.sport] ?? '').trim().toLowerCase() : 'both',
+    key: col.key != null && r[col.key] ? slug(r[col.key]) : null}));
+}
+
 async function loadLocations() {
   let list = [];
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !MOCK) {
+    try {
+      const token = await sheetToken();
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(SHEET_ID)}/values/${encodeURIComponent(SHEET_TAB + '!A1:G500')}`,
+        {headers: {authorization: 'Bearer ' + token}, signal: AbortSignal.timeout(30000)});
+      if (!res.ok) throw Error(`HTTP ${res.status}`);
+      const [head = [], ...rows] = (await res.json()).values || [];
+      list = rowsToLocations(head, rows.filter(r => r.some(x => String(x).trim())));
+      console.log(`LOCATIONS: ${list.length} rows from the "${SHEET_TAB}" tab`);
+    } catch (e) { console.warn(`LOCATIONS: sheet tab unavailable (${e.message})`); }
+  }
   const url = process.env.LOCATIONS_CSV_URL;
-  if (url && !MOCK) {
+  if (!list.length && url && !MOCK) {
     try {
       const res = await fetch(url, {redirect: 'follow'});
       if (!res.ok) throw Error('HTTP ' + res.status);

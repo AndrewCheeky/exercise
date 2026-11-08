@@ -27,7 +27,11 @@ jobs:
           node-version: 20
       - name: Build forecast data and site
         env:
-          # Optional: the Google Sheet of locations, published as CSV (File → Share → Publish to web).
+          # Locations: the "exercise" tab of the Marine Weather Google Sheet, read with the same
+          # service account (copy the GOOGLE_SERVICE_ACCOUNT_JSON secret from the marine-weather repo).
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHEET_TAB: ${{ vars.SHEET_TAB || 'exercise' }}
+          # Optional fallback: a published CSV link.
           LOCATIONS_CSV_URL: ${{ vars.LOCATIONS_CSV_URL }}
         run: node scripts/build.mjs
       - uses: actions/upload-pages-artifact@v3
