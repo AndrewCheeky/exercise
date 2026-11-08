@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RunRide Jamaica | Running and cycling weather</title>
+<meta name="description" content="When to run or ride: morning and evening outdoor exercise forecasts for places around Jamaica.">
+<meta name="theme-color" content="#0b3b2e">
+<link rel="preload" href="assets/fonts/montserrat-latin.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="assets/style.css?v=1.0.0">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">◐</span><span><strong>RunRide</strong> <small>JAMAICA</small></span></a>
+    <div class="sport" role="group" aria-label="Activity">
+      <button type="button" data-sport="run" aria-pressed="true">Run</button>
+      <button type="button" data-sport="cycle" aria-pressed="false">Ride</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1>When to get out <em>today.</em></h1>
+    <p>Morning and evening windows rated for heat, humidity, rain, storms, sun, wind and air quality.</p>
+  </section>
+
+  <section class="controls">
+    <label for="place">Place</label>
+    <select id="place"></select>
+    <p class="updated" id="updated">Loading forecast…</p>
+  </section>
+
+  <p class="banner" id="stale" hidden></p>
+
+  <nav class="days" id="days" aria-label="Choose a day"></nav>
+
+  <section class="windows" id="windows" aria-live="polite"></section>
+
+  <details class="hourly" id="hourly-wrap">
+    <summary>Hour by hour</summary>
+    <div class="table-scroll"><table id="hourly"></table></div>
+  </details>
+
+  <section class="explain">
+    <h2>How the index works</h2>
+    <p><strong>7–10 Go · 5–6 Caution · 0–4 Avoid.</strong> Each window starts at 10 and loses points for heat, humidity, rain, thunderstorms, heat stress (WBGT), sticky dew points, strong sun, gusts, recent or heavy rain and poor air quality. Thunderstorms or dangerous heat cap it at 4. Riding uses the same rules, plus small changes for air density and rain just after the window.</p>
+    <p>Windows: morning 4:30–7:00 AM, evening 4:30–6:30 PM, Jamaica time.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> weather and air quality (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>). Guidance only: listen to your body and check conditions before you go.</p>
+  </div>
+</footer>
+<script src="assets/app.js?v=1.0.0"></script>
+</body>
+</html>

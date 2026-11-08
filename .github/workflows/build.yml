@@ -1,0 +1,44 @@
+name: Build forecast and publish site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    # Every 3 hours (GitHub may start scheduled runs late; Apps Script can also start this job).
+    - cron: '23 */3 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build forecast data and site
+        env:
+          # Optional: the Google Sheet of locations, published as CSV (File → Share → Publish to web).
+          LOCATIONS_CSV_URL: ${{ vars.LOCATIONS_CSV_URL }}
+        run: node scripts/build.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
