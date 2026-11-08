@@ -222,6 +222,12 @@ export function windowStats(h, day, start, end, postLookaheadH = 1) {
   return {
     hasData: true, hours: cnt,
     tempC: r1(tempC), rh: Math.round(rh), windKmh: Math.round(wind),
+    windDirDeg: (() => { // average direction the wind blows FROM (vector mean, so 350° and 10° give 0°)
+      let x = 0, y = 0, n = 0;
+      rows.forEach(i => { const d = v('wind_direction_10m', i), sp = v('wind_speed_10m', i) ?? 1; if (d == null) return; x += Math.sin(d * Math.PI / 180) * sp; y += Math.cos(d * Math.PI / 180) * sp; n++; });
+      return n ? Math.round((Math.atan2(x, y) * 180 / Math.PI + 360) % 360) : null;
+    })(),
+    thunderHours: thunderHits,
     windGustKmh: gust != null ? Math.round(gust) : null,
     gustDelta: gust != null ? Math.round(Math.max(0, gust - wind)) : 0,
     feelsC: r1(mean('apparent_temperature')),

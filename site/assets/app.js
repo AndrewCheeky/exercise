@@ -26,6 +26,9 @@
     cap: P('<path d="M3 15c0-5 4-9 9-9s9 4 9 9H3z"/><path d="M3 15h18l-3 3H6z"/>'),
     bolt: P('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
     road: P('<path d="M7 21 10 3M17 21 14 3M12 6v2M12 11v2M12 16v2"/>'),
+    feels: P('<path d="M10 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M14 8c1.5 1 1.5 3 0 4M17 6c3 2 3 6 0 8"/>'),
+    arrow: P('<path d="M12 20V4M6 10l6-6 6 6"/>'),
+    compass: P('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5z"/>'),
     smile: P('<circle cx="12" cy="12" r="9"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>'),
   };
   const icon = name => { const s = document.createElement('span'); s.className = 'ico'; s.innerHTML = ICONS[name] || ''; return s; };
@@ -72,6 +75,7 @@
     if (key === 'am' && day.sunrise && WIN.am.start < sunrise) out.push(['light', `It's dark until ${clock(day.sunrise)}. Wear something bright; riders, lights on front and back.`]);
     if (key === 'pm' && day.sunset && WIN.pm.end > sunset) out.push(['light', `Sunset is ${clock(day.sunset)}. Be seen on the way home; riders, pack lights.`]);
     if (m.lightningPct >= 50) out.push(['bolt', 'Thunder is forecast. Stay close to shelter, or take it indoors.']);
+    else if (m.thunderHours > 0) out.push(['bolt', 'A thunderstorm is possible. Keep an eye on the sky and know where to shelter.']);
     else if (m.precipPct >= 50) out.push(['road', 'Showers likely. Watch for slippery spots; riders, brake earlier and avoid painted lines.']);
     if (m.wbgt >= 28) out.push(['bottle', 'Heat stress risk. Go shorter, sip water often, rest in the shade.']);
     else if (m.dewPointC >= 22 || m.rh >= 82) out.push(['bottle', `Sticky air (${m.rh}% humidity). Bring water and ease the pace a little.`]);
@@ -122,6 +126,17 @@
     }));
   }
 
+  const COMPASS16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const NAMES = {N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west'};
+  const feelsWord = m => { const f = m.feelsC ?? m.heatIndexC, t = m.tempC; if (f == null) return ''; if (f - t >= 3) return 'hotter than it reads'; if (f >= 32) return 'hot'; if (f >= 28) return 'warm'; if (f >= 22) return 'pleasant'; return 'cool'; };
+  // Wind direction: an arrow pointing where the wind is going, labelled with where it comes from.
+  function windDir(deg) {
+    if (deg == null) return stat('compass', 'Wind from', '—');
+    const c16 = COMPASS16[Math.round(deg / 22.5) % 16], c8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+    const arrow = el('span', {class: 'ico dir', title: `Wind from the ${NAMES[c8]}`});
+    arrow.innerHTML = ICONS.arrow; arrow.style.transform = `rotate(${(deg + 180) % 360}deg)`;
+    return el('div', {class: 'stat'}, arrow, el('dl', {}, el('dt', {}, 'Wind from'), el('dd', {}, c16, el('small', {}, `${NAMES[c8]} · ${deg}°`))));
+  }
   const stat = (ic, label, value, sub) => el('div', {class: 'stat'}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
 
   function card(key, w, day) {
@@ -134,10 +149,12 @@
       el('ul', {class: 'tips'}, tips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
       s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · ')) : null,
       el('dl', {class: 'stats'},
-        stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `feels ${Math.round(m.feelsC ?? m.heatIndexC)}°C`),
-        stat('drop', 'Humidity', `${m.rh}%`, `dew point ${Math.round(m.dewPointC)}°C`),
+        stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`),
+        stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m)),
+        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 ? 'very humid' : m.rh >= 75 ? 'humid' : 'comfortable'),
         stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry'),
         stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : ''),
+        windDir(m.windDirDeg),
         stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : ''),
         stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '')));
   }
