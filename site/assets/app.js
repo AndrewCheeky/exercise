@@ -29,6 +29,7 @@
     feels: P('<path d="M10 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M14 8c1.5 1 1.5 3 0 4M17 6c3 2 3 6 0 8"/>'),
     arrow: P('<path d="M12 20V4M6 10l6-6 6 6"/>'),
     compass: P('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5z"/>'),
+    heart: P('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M5 12h3l2-3 2 5 2-2h5"/>'),
     swim: P('<path d="M2 18c2 0 2-1.5 4-1.5S8 18 10 18s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><path d="M2 21.5c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><circle cx="16.5" cy="6.5" r="2"/><path d="M5 14.5 10 9l3 2.5 2-2"/>'),
     wave: P('<path d="M2 12c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/><path d="M2 17c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/><path d="M2 7c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/>'),
     rip: P('<path d="M3 20c2-2 3-2 5 0M16 20c2-2 3-2 5 0"/><path d="M12 21V5M8 9l4-4 4 4"/>'),
@@ -91,7 +92,7 @@
     else if (m.thunderHours > 0) out.push(['bolt', 'A thunderstorm is possible. Keep an eye on the sky and know where to shelter.']);
     else if (m.precipPct >= 50) out.push(['road', 'Showers likely. Watch for slippery spots; riders, brake earlier and avoid painted lines.']);
     if (m.wbgt >= 28) out.push(['bottle', 'Heat stress risk. Go shorter, sip water often, rest in the shade.']);
-    else if (m.dewPointC >= 24 || m.rh >= 92) out.push(['bottle', `Sticky air (${m.rh}% humidity). Bring water and ease the pace a little.`]);
+    else if (m.dewPointC >= 24 || (m.rh >= 80 && m.tempC >= 28)) out.push(['bottle', `Warm, humid air (${m.rh}% at ${Math.round(m.tempC)}°C). Bring water and ease the pace a little.`]);
     if (m.uvEffective >= 6) out.push(['cap', 'Strong sun. Cap, sunglasses and sunscreen.']);
     if (m.windGustKmh >= 30 || m.gustDelta >= 10) out.push(['wind', `Gusts to ${m.windGustKmh} km/h. Riders, keep a firm grip on descents.`]);
     if (w.air && w.air.hasData && w.air.aqi > 50) out.push(['leaf', `Air quality is ${w.air.category.toLowerCase()}. Take it easier if you're sensitive.`]);
@@ -151,11 +152,20 @@
     return el('div', {class: 'stat'}, arrow, el('dl', {}, el('dt', {}, 'Wind from'), el('dd', {}, c16, el('small', {}, `${NAMES[c8]} · ${deg}°`))));
   }
   // Which tile each "Why this score" reason belongs to, so those tiles can be shaded.
-  const REASON_TILE = [[/thunder|rain|wet from|downpour/i, 'rain'], [/heat stress/i, 'feels'], [/hot|warm/i, 'temp'],
-    [/humid|sticky|oppressive/i, 'humidity'], [/windy|gust/i, 'wind'], [/sun/i, 'uv'], [/air quality/i, 'air']];
+  const REASON_TILE = [[/thunder|rain|wet from|downpour/i, 'rain'], [/heat stress/i, 'feels'], [/humid|sticky|oppressive/i, 'humidity'],
+    [/hot|warm/i, 'temp'], [/windy|gust/i, 'wind'], [/sun/i, 'uv'], [/air quality/i, 'air']];
   const flaggedTiles = reasons => new Set(reasons.flatMap(r => REASON_TILE.filter(([re]) => re.test(r)).slice(0, 1).map(([, k]) => k)));
   let FLAG = new Set();
   const stat = (ic, label, value, sub, key) => el('div', {class: 'stat' + (key && FLAG.has(key) ? ' flag' : ''), title: key && FLAG.has(key) ? 'This lowered the score' : null}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
+
+  // Notes for people with asthma or heart conditions (they don't change the score).
+  function healthBox(h) {
+    if (!h || !h.notes || !h.notes.length) return null;
+    return el('div', {class: 'health ' + h.level},
+      el('p', {class: 'health-head'}, icon('heart'), el('b', {}, h.level === 'high' ? 'Asthma or heart condition: take extra care' : 'Asthma or heart condition?')),
+      el('ul', {}, h.notes.map(n => el('li', {}, n.text))),
+      h.stop ? el('p', {class: 'health-stop'}, 'Stop and rest if you feel chest pain, dizziness or unusual breathlessness.') : null);
+  }
 
   function card(key, w, day) {
     const s = w && w.scores && w.scores[sport], m = w && w.metrics;
@@ -167,11 +177,12 @@
       el('div', {class: 'win-top'}, head, ring(s.index, s.band, 64)),
       el('p', {class: 'verdict'}, `${WORD[s.band]} · ${s.advice}`),
       el('ul', {class: 'tips'}, tips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
+      healthBox(w.health),
       s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
       el('dl', {class: 'stats'},
         stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`, 'temp'),
         stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m), 'feels'),
-        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 95 ? 'saturated' : m.rh >= 92 ? 'very humid' : m.rh >= 75 ? 'normal for Jamaica' : 'comfortable', 'humidity'),
+        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 && m.tempC >= 30 ? 'hot and humid' : m.rh >= 80 && m.tempC >= 28 ? 'warm and humid' : m.rh >= 75 ? 'normal for Jamaica' : 'comfortable', 'humidity'),
         stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry', 'rain'),
         stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : '', 'wind'),
         windDir(m.windDirDeg),
@@ -256,7 +267,7 @@
   }
 
   const EXPLAIN = {
-    land: ['Each window starts at 10 and loses points for heat, humidity, rain, thunderstorms, heat stress, sticky air, strong sun, gusts, wet roads and poor air quality. Thunderstorms or dangerous heat cap it at 4. One score covers running, walking and riding.',
+    land: ['Each window starts at 10 and loses points for heat, rain, thunderstorms, muggy heat, strong sun, gusts, wet roads and poor air quality. Humidity only counts with heat (80% from 28°C, 85% from 30°C), and humidity, dew point and heat stress share one penalty so they don\'t stack. Thunderstorms or dangerous heat cap it at 4. Separate notes appear for people with asthma or heart conditions; they don\'t change the score.',
       'Morning window 4:30–7:00 AM, evening window 4:30–6:30 PM, Jamaica time.'],
     swim: ['Open water starts at 10 and loses points for swell, rip risk, onshore wind, rain in the last 48 hours (water quality) and very warm water. Thunder, seas over 1.5 m or a high rip risk cap it at 4. Pools lose points for thunder, heavy showers, heat on deck and strong sun.',
       'Morning window 5:30–8:00 AM, evening window 4:30–6:30 PM, Jamaica time. Sea forecasts are models: always look at the water before you get in.'],

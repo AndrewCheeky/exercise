@@ -24,7 +24,7 @@ export function mockForecast(locs, days) {
     return {hourly: H, daily: {time: dates, sunrise: dates.map(d => d + 'T06:09'), sunset: dates.map(d => d + 'T17:32')}};
   });
   const aq = locs.map(() => {
-    const H = {time, us_aqi: time.map(() => 28), us_aqi_pm2_5: time.map(() => 15), us_aqi_ozone: time.map(() => 28), pm2_5: time.map(() => 3.7), ozone: time.map(() => 32.4)};
+    const H = {time, us_aqi: time.map(() => 28), us_aqi_pm2_5: time.map(() => 15), us_aqi_ozone: time.map(() => 28), pm2_5: time.map(() => 3.7), ozone: time.map(() => 32.4), dust: time.map((t, i) => Math.floor(i / 24) === 2 ? 60 : 8)};
     return {hourly: H};
   });
   return {wx, aq};

@@ -1,5 +1,5 @@
 // Go Run Index rules, ported from the Wx-Exercise5day Apps Script (v2.7.0).
-// Thresholds and penalties are unchanged; each penalty also records a short plain reason.
+// Each penalty records a short plain reason. Humidity, dew point and WBGT share one muggy-heat penalty (largest wins).
 
 export const RULES = {
   LIGHTNING_ALERT_THRESHOLD: 50, LIGHTNING_INDEX_DOWNGRADE: 2, LIGHTNING_CAP: 4,
@@ -69,6 +69,48 @@ export function aqiCategory(aqi) {
     : aqi <= 200 ? 'Unhealthy' : aqi <= 300 ? 'Very unhealthy' : 'Hazardous';
 }
 
+/** The single largest muggy-heat penalty from humidity-with-heat, dew point and WBGT. */
+export function mugginess(m) {
+  const R = RULES, opts = [{points: 0, why: ''}];
+  if (m.rh >= 85 && m.tempC >= 30) opts.push({points: 2, why: `Hot and humid (${m.rh}% at ${Math.round(m.tempC)}°C)`});
+  else if (m.rh >= 80 && m.tempC >= 28) opts.push({points: 1, why: `Warm and humid (${m.rh}% at ${Math.round(m.tempC)}°C)`});
+  const wbgt = wbgtProxy(m.tempC, m.rh);
+  if (wbgt != null) {
+    if (wbgt >= R.WBGT_DANGER) opts.push({points: 4, why: `Dangerous heat stress (WBGT ${wbgt})`, danger: true});
+    else if (wbgt >= R.WBGT_WARN) opts.push({points: 2, why: `Heat stress (WBGT ${wbgt})`});
+  }
+  if (m.dewPointC != null) {
+    if (m.dewPointC >= R.DEWPOINT_DANGER) opts.push({points: 2, why: `Oppressive (dew point ${m.dewPointC}°C)`});
+    else if (m.dewPointC >= R.DEWPOINT_WARN) opts.push({points: 1, why: `Sticky (dew point ${m.dewPointC}°C)`});
+  }
+  return opts.reduce((a, b) => b.points > a.points ? b : a);
+}
+
+/** Notes for people with asthma or heart conditions. They never change the score. */
+export function healthNotes(m, aq) {
+  if (!m || !m.hasData) return null;
+  const notes = [];
+  let level = null;
+  const add = (lv, who, text) => { notes.push({level: lv, who, text}); if (lv === 'high' || !level) level = lv === 'high' ? 'high' : level || 'caution'; };
+  const hi = m.heatIndexC != null ? Math.round(m.heatIndexC) : null, wbgt = wbgtProxy(m.tempC, m.rh);
+  if ((wbgt != null && wbgt >= RULES.WBGT_WARN) || (hi != null && hi >= 40) || (m.rh >= 85 && m.tempC >= 30))
+    add('high', 'heart', `High heat strain (feels like ${hi ?? Math.round(m.feelsC)}°C). With a heart or lung condition, keep it short and easy, or train indoors.`);
+  else if ((hi != null && hi >= 32) || (m.rh >= 80 && m.tempC >= 28))
+    add('caution', 'heart', `Warm, humid air pushes your heart rate up (feels like ${hi ?? Math.round(m.feelsC)}°C). Go easier than usual and drink often.`);
+  if (aq && aq.hasData) {
+    if (aq.aqi > 100) add('high', 'asthma', `Air quality is unhealthy for sensitive groups (AQI ${aq.aqi}). Asthma: consider training indoors today.`);
+    else if (aq.aqi > 50) add('caution', 'asthma', `Air quality is moderate (AQI ${aq.aqi}). Asthma: keep your inhaler with you.`);
+    if (aq.dust != null) {
+      if (aq.dust >= 100) add('high', 'asthma', `Heavy Saharan dust (${Math.round(aq.dust)} µg/m³). Asthma: train indoors if you can.`);
+      else if (aq.dust >= 45) add('caution', 'asthma', `Saharan dust in the air (${Math.round(aq.dust)} µg/m³). Asthma: carry your inhaler and keep it shorter.`);
+    }
+  }
+  if (m.tempC <= 22 && m.rh >= 90) add('caution', 'asthma', 'Cool, damp air can tighten airways. Warm up slowly and carry your inhaler.');
+  if (!notes.length) return null;
+  notes.sort((a, b) => (b.level === 'high') - (a.level === 'high'));
+  return {level, notes: notes.slice(0, 2), stop: level === 'high'};
+}
+
 /** Go Index 0–10 (7–10 Go, 5–6 Caution, 0–4 Avoid) with the reasons that lowered it. sport: 'mixed' (default, as the email) | 'run' | 'cycle' */
 export function goIndex(m, aq, isEvening, sport = 'mixed') {
   if (!m || !m.hasData) return {index: 0, reasons: ['No forecast data']};
@@ -76,8 +118,11 @@ export function goIndex(m, aq, isEvening, sport = 'mixed') {
   let s = 10;
   const hit = (n, why) => { s -= n; reasons.push(why); };
   if (m.tempC >= 32) hit(3, `Hot (${m.tempC}°C)`); else if (m.tempC >= 30) hit(2, `Hot (${m.tempC}°C)`); else if (m.tempC >= 27) hit(1, `Warm (${m.tempC}°C)`);
-  // Jamaica averages about 85% humidity, so only unusually saturated air counts (dew point and WBGT still catch muggy heat).
-  if (m.rh >= 95) hit(2, `Saturated air (${m.rh}% humidity)`); else if (m.rh >= 92) hit(1, `Very humid (${m.rh}%)`);
+  // Muggy heat: humidity only matters with heat (80% from 28°C, 85% from 30°C). Humidity, dew point and WBGT
+  // describe the same strain, so only the largest of the three counts (no stacking).
+  const muggy = mugginess(m);
+  if (muggy.points) hit(muggy.points, muggy.why);
+  if (muggy.danger) s = Math.min(s, R.LIGHTNING_CAP);
   if (m.windKmh >= 30) hit(1, `Windy (${m.windKmh} km/h)`);
   if (m.precipPct >= 70) hit(3, `Rain likely (${m.precipPct}%)`); else if (m.precipPct >= 50) hit(2, `Rain possible (${m.precipPct}%)`); else if (m.precipPct >= 30) hit(1, `Chance of rain (${m.precipPct}%)`);
   const lightning = m.lightningPct != null && m.lightningPct >= R.LIGHTNING_ALERT_THRESHOLD;
@@ -86,9 +131,6 @@ export function goIndex(m, aq, isEvening, sport = 'mixed') {
     const p = aqiPenalty(aq.aqi, isEvening, aq.driver, m.windKmh || 0, m.tempC >= 32);
     if (p < 0) { s += p; reasons.push(`Air quality ${aqiCategory(aq.aqi).toLowerCase()} (AQI ${aq.aqi})`); } else s += p;
   }
-  const wbgt = wbgtProxy(m.tempC, m.rh);
-  if (wbgt != null) { if (wbgt >= R.WBGT_DANGER) hit(4, `Dangerous heat stress (WBGT ${wbgt})`); else if (wbgt >= R.WBGT_WARN) hit(2, `Heat stress (WBGT ${wbgt})`); }
-  if (m.dewPointC != null) { if (m.dewPointC >= R.DEWPOINT_DANGER) hit(2, `Oppressive (dew point ${m.dewPointC}°C)`); else if (m.dewPointC >= R.DEWPOINT_WARN) hit(1, `Sticky (dew point ${m.dewPointC}°C)`); }
   if (m.uvEffective != null) { if (m.uvEffective >= R.UV_EFF_HIGH) hit(2, `Very strong sun (UV ${m.uvEffective})`); else if (m.uvEffective >= R.UV_EFF_WARN) hit(1, `Strong sun (UV ${m.uvEffective})`); }
   if (m.gustDelta != null) { if (m.gustDelta >= R.GUST_DELTA_HIGH) hit(2, `Very gusty (+${m.gustDelta} km/h)`); else if (m.gustDelta >= R.GUST_DELTA_WARN) hit(1, `Gusty (+${m.gustDelta} km/h)`); }
   if (m.rainRecentMm6h != null && m.rainRecentMm6h >= R.RECENT_RAIN_MM_6H) hit(1, `Wet from earlier rain (${m.rainRecentMm6h} mm)`);

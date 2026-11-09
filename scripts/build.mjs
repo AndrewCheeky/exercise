@@ -4,7 +4,7 @@
 import {readFile, writeFile, mkdir, cp} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createSign} from 'node:crypto';
-import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy} from './index-rules.mjs';
+import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy, healthNotes} from './index-rules.mjs';
 import {marineWindow, seaScore, poolScore} from './swim-rules.mjs';
 
 const TZ = 'America/Jamaica';
@@ -134,7 +134,7 @@ async function fetchForecasts(locs) {
   let aq = null;
   try {
     aq = await getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}`
-      + `&hourly=pm2_5,ozone,us_aqi,us_aqi_pm2_5,us_aqi_ozone&timezone=${encodeURIComponent(TZ)}&forecast_days=5`, 'AIR QUALITY');
+      + `&hourly=pm2_5,ozone,dust,us_aqi,us_aqi_pm2_5,us_aqi_ozone&timezone=${encodeURIComponent(TZ)}&forecast_days=5`, 'AIR QUALITY');
   } catch (e) { console.warn('AIR QUALITY unavailable:', e.message); }
   const arr = x => Array.isArray(x) ? x : [x];
   // Sea conditions for open-water swim spots (Open-Meteo Marine; cell_selection=sea picks the nearest sea cell).
@@ -160,7 +160,7 @@ function aqWindow(a, day, start, end) {
   if (aqi == null) return {hasData: false};
   const pm = mean('us_aqi_pm2_5') ?? 0, o3 = mean('us_aqi_ozone') ?? 0;
   return {hasData: true, aqi: Math.round(aqi), driver: o3 > pm ? 'O3' : 'PM25', category: aqiCategory(Math.round(aqi)),
-    pm25: mean('pm2_5') != null ? Math.round(mean('pm2_5') * 10) / 10 : null, ozone: mean('ozone') != null ? Math.round(mean('ozone') * 10) / 10 : null};
+    pm25: mean('pm2_5') != null ? Math.round(mean('pm2_5') * 10) / 10 : null, ozone: mean('ozone') != null ? Math.round(mean('ozone') * 10) / 10 : null, dust: mean('dust') != null ? Math.round(mean('dust')) : null};
 }
 
 function hourlyForDay(h, day, mh) {
@@ -231,7 +231,7 @@ async function main() {
           scores[sport] = {index: g.index, band: band(g.index), reasons: g.reasons, advice: advice(g.index, !isPm, m)};
         }
         entry.windows[key] = {label: win.label, metrics: m.hasData ? {...m, wbgt: wbgtProxy(m.tempC, m.rh)} : null, air,
-          runScore10: Math.round(runScore(m, air, isPm) / 10), scores};
+          runScore10: Math.round(runScore(m, air, isPm) / 10), scores, health: healthNotes(m, air)};
       }
       return entry;
     });
