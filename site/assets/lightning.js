@@ -50,7 +50,7 @@
     const fresh = feed && feed.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
-      text: feed.status === 'sleeping' ? 'It runs from 4 AM to 9 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : 'Live lightning data isn\'t available at the moment.'};
+      text: feed.status === 'sleeping' ? 'It runs from 4 AM to 9 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
     box.className = 'lightning lw-' + s.level;
