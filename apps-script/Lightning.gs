@@ -98,7 +98,8 @@ function lwPoll() {
 }
 
 function lwFetch_(props, lat, lon) {
-  const id = props.getProperty('XWEATHER_ID'), secret = props.getProperty('XWEATHER_SECRET');
+  const clean = v => String(v || '').trim().replace(/^["']+|["']+$/g, '');   // ignore stray spaces or quotes
+  const id = clean(props.getProperty('XWEATHER_ID')), secret = clean(props.getProperty('XWEATHER_SECRET'));
   if (!id || !secret) throw Error('Add XWEATHER_ID and XWEATHER_SECRET in Script Properties');
   const url = 'https://data.api.xweather.com/lightning/closest?p=' + lat + ',' + lon +
     '&radius=' + LW.RADIUS_KM + 'km&limit=1000' +
