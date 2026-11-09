@@ -299,7 +299,7 @@
     document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
     const gen = new Date(data.generatedAt);
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
-    if (Date.now() - gen.getTime() > 8 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 8 hours old. The latest update may have failed.'; $('stale').hidden = false; }
+    if (Date.now() - gen.getTime() > 13 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 13 hours old. The latest update may have failed.'; $('stale').hidden = false; }
     render();
   }
   load();

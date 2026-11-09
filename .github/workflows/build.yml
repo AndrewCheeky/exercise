@@ -5,8 +5,13 @@ on:
   push:
     branches: [main]
   schedule:
-    # Every 3 hours (GitHub may start scheduled runs late; Apps Script can also start this job).
-    - cron: '23 */3 * * *'
+    # Three runs a day, timed for when people plan (Jamaica time = UTC-5, no daylight saving):
+    #   3:40 AM  fresh before the 4:30 AM run/ride and 5:30 AM swim windows
+    #   2:40 PM  fresh for the 4:30 PM evening window
+    #   7:40 PM  for planning tomorrow morning the night before
+    # GitHub can start scheduled runs late, so each one is about 50 minutes ahead of its window.
+    - cron: '40 8,19 * * *'
+    - cron: '40 0 * * *'
 
 permissions:
   contents: read
