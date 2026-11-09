@@ -42,6 +42,24 @@ a{color:var(--orange)}
 .place .ico{color:var(--orange)}
 .place select{border:0;background:transparent;font:inherit;font-weight:800;color:var(--ink);padding:6px 4px;max-width:70vw;cursor:pointer}
 
+/* ---------- Lightning watch ---------- */
+.lightning{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;margin-top:18px;padding:16px 18px;border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow);border-left:6px solid #9a9aa5}
+.lightning h2{margin:2px 0 0;font-size:20px;line-height:1.2}
+.lightning p{margin:4px 0 0;font-size:14.5px;color:var(--ink-2)}
+.lightning .lw-kicker{margin:0;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lightning .lw-note{font-size:12.5px;color:var(--muted)}
+.lw-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:#ececf0;color:#6d6d78}
+.lw-icon svg{width:24px;height:24px}
+.lw-gps{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-weight:700;font-size:13px;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.lw-gps svg{width:16px;height:16px;color:var(--orange)}
+.lw-gps[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.lw-gps:focus-visible{outline:3px solid var(--orange-2);outline-offset:2px}
+.lw-danger{background:var(--avoid-soft);border-left-color:var(--avoid)}.lw-danger .lw-icon{background:var(--avoid);color:#fff}.lw-danger h2{color:#9a2018}
+.lw-warn{background:var(--caution-soft);border-left-color:var(--caution)}.lw-warn .lw-icon{background:var(--caution);color:#fff}.lw-warn h2{color:#8a5400}
+.lw-watch{border-left-color:var(--caution)}.lw-watch .lw-icon{background:var(--caution-soft);color:#8a5400}
+.lw-clear{border-left-color:var(--go)}.lw-clear .lw-icon{background:var(--go-soft);color:var(--go)}
+@media(max-width:760px){.lightning{grid-template-columns:auto 1fr}.lw-gps{grid-column:1/-1;justify-self:start}}
+
 /* ---------- Sections ---------- */
 .banner{background:var(--avoid-soft);color:#8a1f17;border-radius:12px;padding:10px 14px;font-weight:700;margin:16px 0 0}
 .section{margin-top:22px}

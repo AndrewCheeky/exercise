@@ -179,6 +179,7 @@
     const L = loc(); if (!L) return;
     if (dayIdx >= L.days.length) dayIdx = 0;
     hero(); renderDays();
+    document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon}}));
     const day = L.days[dayIdx];
     $('windows').replaceChildren(card('am', day.windows.am, day), card('pm', day.windows.pm, day));
     renderHourly(day);
