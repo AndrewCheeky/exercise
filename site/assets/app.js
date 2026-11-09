@@ -91,7 +91,7 @@
     else if (m.thunderHours > 0) out.push(['bolt', 'A thunderstorm is possible. Keep an eye on the sky and know where to shelter.']);
     else if (m.precipPct >= 50) out.push(['road', 'Showers likely. Watch for slippery spots; riders, brake earlier and avoid painted lines.']);
     if (m.wbgt >= 28) out.push(['bottle', 'Heat stress risk. Go shorter, sip water often, rest in the shade.']);
-    else if (m.dewPointC >= 22 || m.rh >= 82) out.push(['bottle', `Sticky air (${m.rh}% humidity). Bring water and ease the pace a little.`]);
+    else if (m.dewPointC >= 24 || m.rh >= 92) out.push(['bottle', `Sticky air (${m.rh}% humidity). Bring water and ease the pace a little.`]);
     if (m.uvEffective >= 6) out.push(['cap', 'Strong sun. Cap, sunglasses and sunscreen.']);
     if (m.windGustKmh >= 30 || m.gustDelta >= 10) out.push(['wind', `Gusts to ${m.windGustKmh} km/h. Riders, keep a firm grip on descents.`]);
     if (w.air && w.air.hasData && w.air.aqi > 50) out.push(['leaf', `Air quality is ${w.air.category.toLowerCase()}. Take it easier if you're sensitive.`]);
@@ -171,7 +171,7 @@
       el('dl', {class: 'stats'},
         stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`, 'temp'),
         stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m), 'feels'),
-        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 ? 'very humid' : m.rh >= 75 ? 'humid' : 'comfortable', 'humidity'),
+        stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 95 ? 'saturated' : m.rh >= 92 ? 'very humid' : m.rh >= 75 ? 'normal for Jamaica' : 'comfortable', 'humidity'),
         stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry', 'rain'),
         stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : '', 'wind'),
         windDir(m.windDirDeg),

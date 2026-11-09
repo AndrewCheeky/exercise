@@ -76,7 +76,8 @@ export function goIndex(m, aq, isEvening, sport = 'mixed') {
   let s = 10;
   const hit = (n, why) => { s -= n; reasons.push(why); };
   if (m.tempC >= 32) hit(3, `Hot (${m.tempC}°C)`); else if (m.tempC >= 30) hit(2, `Hot (${m.tempC}°C)`); else if (m.tempC >= 27) hit(1, `Warm (${m.tempC}°C)`);
-  if (m.rh >= 85) hit(2, `Very humid (${m.rh}%)`); else if (m.rh >= 75) hit(1, `Humid (${m.rh}%)`);
+  // Jamaica averages about 85% humidity, so only unusually saturated air counts (dew point and WBGT still catch muggy heat).
+  if (m.rh >= 95) hit(2, `Saturated air (${m.rh}% humidity)`); else if (m.rh >= 92) hit(1, `Very humid (${m.rh}%)`);
   if (m.windKmh >= 30) hit(1, `Windy (${m.windKmh} km/h)`);
   if (m.precipPct >= 70) hit(3, `Rain likely (${m.precipPct}%)`); else if (m.precipPct >= 50) hit(2, `Rain possible (${m.precipPct}%)`); else if (m.precipPct >= 30) hit(1, `Chance of rain (${m.precipPct}%)`);
   const lightning = m.lightningPct != null && m.lightningPct >= R.LIGHTNING_ALERT_THRESHOLD;
