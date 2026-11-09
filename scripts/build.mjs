@@ -5,10 +5,13 @@ import {readFile, writeFile, mkdir, cp} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createSign} from 'node:crypto';
 import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy} from './index-rules.mjs';
+import {marineWindow, seaScore, poolScore} from './swim-rules.mjs';
 
 const TZ = 'America/Jamaica';
 const OUT = resolve(process.env.OUTPUT_DIR || '_site');
 const WINDOWS = {am: {label: 'Morning', start: 4.5, end: 7}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
+const SWIM_WINDOWS = {am: {label: 'Morning', start: 5.5, end: 8}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
+const MARINE = ['wave_height', 'wave_period', 'wave_direction', 'swell_wave_height', 'swell_wave_period', 'sea_surface_temperature', 'ocean_current_velocity', 'ocean_current_direction'];
 const DAYS = 7;
 const MOCK = process.env.MOCK === '1';
 
@@ -46,7 +49,8 @@ function rowsToLocations(head, rows) {
   for (const k of ['name', 'lat', 'lon']) if (!(k in col)) throw Error(`the "${SHEET_TAB}" tab is missing a "${k}" column`);
   return rows.map(r => ({name: String(r[col.name] ?? '').trim(), lat: Number(r[col.lat]), lon: Number(r[col.lon]),
     area: col.area != null ? String(r[col.area] ?? '').trim() : '', sport: col.sport != null ? String(r[col.sport] ?? '').trim().toLowerCase() : 'both',
-    key: col.key != null && r[col.key] ? slug(r[col.key]) : null}));
+    key: col.key != null && r[col.key] ? slug(r[col.key]) : null,
+    type: col.type != null ? String(r[col.type] ?? '').trim().toLowerCase() : '', facing: col.facing != null && String(r[col.facing] ?? '').trim() !== '' ? Number(r[col.facing]) : null}));
 }
 
 async function loadLocations() {
@@ -79,16 +83,28 @@ async function loadLocations() {
       for (const k of ['name', 'lat', 'lon']) if (!(k in col)) throw Error(`sheet is missing a "${k}" column`);
       list = rows.map(r => ({name: r[col.name]?.trim(), lat: Number(r[col.lat]), lon: Number(r[col.lon]),
         area: col.area != null ? r[col.area]?.trim() : '', sport: col.sport != null ? (r[col.sport] || '').trim().toLowerCase() : 'both',
-        key: col.key != null && r[col.key] ? slug(r[col.key]) : null}));
+        key: col.key != null && r[col.key] ? slug(r[col.key]) : null,
+        type: col.type != null ? (r[col.type] || '').trim().toLowerCase() : '', facing: col.facing != null && (r[col.facing] || '').trim() !== '' ? Number(r[col.facing]) : null}));
       console.log(`LOCATIONS: ${list.length} rows from the Google Sheet`);
     } catch (e) { console.warn(`LOCATIONS: sheet unavailable (${e.message}); using data/locations.json`); }
   }
   if (!list.length) list = JSON.parse(await readFile('data/locations.json', 'utf8'));
+  // Swimming: rows with sport "swim". Until the sheet has any, use the starter list in data/swim-spots.json.
+  if (!list.some(l => String(l.sport || '').toLowerCase() === 'swim')) {
+    const starter = JSON.parse(await readFile('data/swim-spots.json', 'utf8'));
+    console.log(`SWIM: no swim rows in the sheet; using ${starter.length} starter spots from data/swim-spots.json`);
+    list = list.concat(starter);
+  }
   const seen = new Set();
   return list.filter(l => {
     if (!l.name || !Number.isFinite(l.lat) || !Number.isFinite(l.lon) || Math.abs(l.lat) > 90 || Math.abs(l.lon) > 180) { console.warn('LOCATION SKIPPED (bad name or coordinates):', l.name); return false; }
     l.key = l.key || slug(l.name);
-    if (!['run', 'cycle', 'both'].includes(l.sport)) l.sport = 'both';
+    if (!['run', 'cycle', 'both', 'swim'].includes(l.sport)) l.sport = 'both';
+    if (l.sport === 'swim') {
+      l.type = l.type === 'pool' ? 'pool' : 'sea';
+      l.facing = Number.isFinite(Number(l.facing)) && l.facing !== null && l.facing !== '' ? ((Number(l.facing) % 360) + 360) % 360 : null;
+      if (l.type === 'sea' && l.facing == null) console.warn('SWIM: no "facing" for', l.name, '- treating all wind as onshore');
+    }
     if (seen.has(l.key)) { console.warn('LOCATION SKIPPED (duplicate):', l.name); return false; }
     seen.add(l.key); return true;
   });
@@ -111,17 +127,28 @@ const HOURLY = ['temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'appar
   'precipitation', 'weather_code', 'cloud_cover', 'wind_speed_10m', 'wind_gusts_10m', 'wind_direction_10m', 'uv_index', 'surface_pressure'];
 
 async function fetchForecasts(locs) {
-  if (MOCK) { const {mockForecast} = await import('./mock.mjs'); return mockForecast(locs, DAYS); }
+  if (MOCK) { const {mockForecast, mockMarine} = await import('./mock.mjs'); return {...mockForecast(locs, DAYS), marine: mockMarine(locs, DAYS)}; }
   const lat = locs.map(l => l.lat.toFixed(4)).join(','), lon = locs.map(l => l.lon.toFixed(4)).join(',');
   const wx = await getJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${HOURLY.join(',')}`
-    + `&daily=sunrise,sunset&timezone=${encodeURIComponent(TZ)}&forecast_days=${DAYS}&past_days=1&wind_speed_unit=kmh`, 'FORECAST');
+    + `&daily=sunrise,sunset&timezone=${encodeURIComponent(TZ)}&forecast_days=${DAYS}&past_days=2&wind_speed_unit=kmh`, 'FORECAST');
   let aq = null;
   try {
     aq = await getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}`
       + `&hourly=pm2_5,ozone,us_aqi,us_aqi_pm2_5,us_aqi_ozone&timezone=${encodeURIComponent(TZ)}&forecast_days=5`, 'AIR QUALITY');
   } catch (e) { console.warn('AIR QUALITY unavailable:', e.message); }
   const arr = x => Array.isArray(x) ? x : [x];
-  return {wx: arr(wx), aq: aq ? arr(aq) : []};
+  // Sea conditions for open-water swim spots (Open-Meteo Marine; cell_selection=sea picks the nearest sea cell).
+  const marine = locs.map(() => null);
+  const seaIdx = locs.map((l, i) => l.sport === 'swim' && l.type === 'sea' ? i : -1).filter(i => i >= 0);
+  if (seaIdx.length) {
+    try {
+      const mlat = seaIdx.map(i => locs[i].lat.toFixed(4)).join(','), mlon = seaIdx.map(i => locs[i].lon.toFixed(4)).join(',');
+      const m = arr(await getJson(`https://marine-api.open-meteo.com/v1/marine?latitude=${mlat}&longitude=${mlon}&hourly=${MARINE.join(',')}`
+        + `&timezone=${encodeURIComponent(TZ)}&forecast_days=${DAYS}&cell_selection=sea`, 'MARINE'));
+      seaIdx.forEach((li, k) => { marine[li] = m[k] || null; });
+    } catch (e) { console.warn('MARINE unavailable:', e.message); }
+  }
+  return {wx: arr(wx), aq: aq ? arr(aq) : [], marine};
 }
 
 function aqWindow(a, day, start, end) {
@@ -136,27 +163,61 @@ function aqWindow(a, day, start, end) {
     pm25: mean('pm2_5') != null ? Math.round(mean('pm2_5') * 10) / 10 : null, ozone: mean('ozone') != null ? Math.round(mean('ozone') * 10) / 10 : null};
 }
 
-function hourlyForDay(h, day) {
+function hourlyForDay(h, day, mh) {
   const out = [];
+  const mIdx = {}; if (mh && mh.time) mh.time.forEach((t, i) => { mIdx[t] = i; });
   h.time.forEach((t, i) => {
     const hr = Number(t.slice(11, 13));
     if (!t.startsWith(day) || hr < 4 || hr > 20) return;
     out.push({t: t.slice(11, 16), temp: h.temperature_2m[i], feels: h.apparent_temperature[i], rh: h.relative_humidity_2m[i],
       pop: h.precipitation_probability[i], mm: h.precipitation[i], wind: h.wind_speed_10m[i], gust: h.wind_gusts_10m[i],
-      dir: h.wind_direction_10m[i], uv: h.uv_index[i], code: h.weather_code[i]});
+      dir: h.wind_direction_10m[i], uv: h.uv_index[i], code: h.weather_code[i],
+      ...(mh && mIdx[t] != null ? {wave: mh.wave_height?.[mIdx[t]] ?? null, period: mh.wave_period?.[mIdx[t]] ?? null, sst: mh.sea_surface_temperature?.[mIdx[t]] ?? null} : {})});
   });
   return out;
+}
+
+// Rain in the 48 hours before a window starts (for open-water quality).
+function rainBefore(h, day, startH) {
+  const startMs = Date.parse(`${day}T${String(Math.floor(startH)).padStart(2, '0')}:00:00Z`);
+  let mm = 0;
+  h.time.forEach((t, i) => { const ms = Date.parse(t + ':00Z'); if (ms < startMs && ms >= startMs - 48 * 3600e3) mm += h.precipitation[i] ?? 0; });
+  return mm;
+}
+
+function swimLocation(loc, w, mar, today) {
+  const mh = mar && mar.hourly;
+  if (loc.type === 'sea' && !mh) console.warn('NO SEA FORECAST for', loc.name);
+  const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map(day => {
+    const sunIdx = w.daily.time.indexOf(day);
+    const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day, mh)};
+    for (const [key, win] of Object.entries(SWIM_WINDOWS)) {
+      const m = windowStats(w.hourly, day, win.start, win.end);
+      if (loc.type === 'pool') {
+        const sc = poolScore(m);
+        entry.windows[key] = {label: win.label, metrics: m.hasData ? m : null, scores: {swim: sc}};
+      } else {
+        const sea = marineWindow(mh, day, win.start, win.end);
+        const sc = seaScore(m, sea, rainBefore(w.hourly, day, win.start), loc.facing);
+        entry.windows[key] = {label: win.label, metrics: m.hasData ? m : null, sea: sea.hasData ? sea : null, scores: {swim: sc}};
+      }
+    }
+    return entry;
+  });
+  console.log(`${loc.name} (swim, ${loc.type}): ${days.map(d => `${d.date.slice(5)} AM ${d.windows.am.scores.swim.index} PM ${d.windows.pm.scores.swim.index}`).join(' | ')}`);
+  return {key: loc.key, name: loc.name, area: loc.area || '', sport: 'swim', type: loc.type, facing: loc.facing, lat: loc.lat, lon: loc.lon, days};
 }
 
 async function main() {
   const locs = await loadLocations();
   if (!locs.length) throw Error('No valid locations');
-  const {wx, aq} = await fetchForecasts(locs);
+  const {wx, aq, marine} = await fetchForecasts(locs);
   const today = new Intl.DateTimeFormat('en-CA', {timeZone: TZ}).format(new Date());
   const result = {generatedAt: new Date().toISOString(), timezone: TZ, windows: WINDOWS,
-    source: 'Open-Meteo weather and air quality (CC BY 4.0)', locations: []};
+    swimWindows: SWIM_WINDOWS, source: 'Open-Meteo weather, marine and air quality (CC BY 4.0)', locations: []};
   locs.forEach((loc, li) => {
     const w = wx[li]; if (!w || !w.hourly) { console.warn('NO FORECAST for', loc.name); return; }
+    if (loc.sport === 'swim') { result.locations.push(swimLocation(loc, w, marine[li], today)); return; }
     const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map((day, di) => {
       const sunIdx = w.daily.time.indexOf(day);
       const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day)};

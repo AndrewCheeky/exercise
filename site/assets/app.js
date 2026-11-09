@@ -29,6 +29,12 @@
     feels: P('<path d="M10 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M14 8c1.5 1 1.5 3 0 4M17 6c3 2 3 6 0 8"/>'),
     arrow: P('<path d="M12 20V4M6 10l6-6 6 6"/>'),
     compass: P('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5z"/>'),
+    swim: P('<path d="M2 18c2 0 2-1.5 4-1.5S8 18 10 18s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><path d="M2 21.5c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><circle cx="16.5" cy="6.5" r="2"/><path d="M5 14.5 10 9l3 2.5 2-2"/>'),
+    wave: P('<path d="M2 12c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/><path d="M2 17c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/><path d="M2 7c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2"/>'),
+    rip: P('<path d="M3 20c2-2 3-2 5 0M16 20c2-2 3-2 5 0"/><path d="M12 21V5M8 9l4-4 4 4"/>'),
+    current: P('<path d="M3 9h12a3 3 0 0 0 0-6M3 15h14a3 3 0 0 1 0 6M3 12h18M18 9l3 3-3 3"/>'),
+    flask: P('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7 15h10"/>'),
+    float: P('<rect x="7" y="3" width="10" height="15" rx="5"/><path d="M12 18v3M9 9h6"/>'),
     smile: P('<circle cx="12" cy="12" r="9"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>'),
   };
   const icon = name => { const s = document.createElement('span'); s.className = 'ico'; s.innerHTML = ICONS[name] || ''; return s; };
@@ -64,16 +70,23 @@
     return svg;
   }
 
-  let data = null, place = store.get('rr.place', ''), dayIdx = 0;
-  const sport = 'mixed';   // one score for running, walking and riding (the email's mixed mode)
-  const loc = () => data && (data.locations.find(l => l.key === place) || data.locations[0]);
+  // Two modes: run & ride (one shared score, the email's mixed mode) and swim (sea or pool).
+  let mode = store.get('jwa.mode', 'land') === 'swim' ? 'swim' : 'land';
+  const placeKey = () => mode === 'swim' ? 'jwa.swimPlace' : 'rr.place';
+  let data = null, place = store.get(placeKey(), ''), dayIdx = 0;
+  let sport = mode === 'swim' ? 'swim' : 'mixed';
+  const inMode = l => mode === 'swim' ? l.sport === 'swim' : l.sport !== 'swim';
+  const places = () => data ? data.locations.filter(inMode) : [];
+  const loc = () => { const list = places(); return list.find(l => l.key === place) || list[0]; };
+  const SWIM_WIN = {am: {label: 'Morning', times: '5:30–8:00 AM', start: 5.5, end: 8, icon: 'sunrise'}, pm: {label: 'Evening', times: '4:30–6:30 PM', start: 16.5, end: 18.5, icon: 'sunset'}};
+  const W = () => mode === 'swim' ? SWIM_WIN : WIN;
 
   // Practical, friendly tips for a window (max 3), from the forecast numbers.
   function tips(key, w, day) {
     const m = w.metrics || {}, out = [];
     const sunrise = hours(day.sunrise), sunset = hours(day.sunset);
-    if (key === 'am' && day.sunrise && WIN.am.start < sunrise) out.push(['light', `It's dark until ${clock(day.sunrise)}. Wear something bright; riders, lights on front and back.`]);
-    if (key === 'pm' && day.sunset && WIN.pm.end > sunset) out.push(['light', `Sunset is ${clock(day.sunset)}. Be seen on the way home; riders, pack lights.`]);
+    if (key === 'am' && day.sunrise && W().am.start < sunrise) out.push(['light', `It's dark until ${clock(day.sunrise)}. Wear something bright; riders, lights on front and back.`]);
+    if (key === 'pm' && day.sunset && W().pm.end > sunset) out.push(['light', `Sunset is ${clock(day.sunset)}. Be seen on the way home; riders, pack lights.`]);
     if (m.lightningPct >= 50) out.push(['bolt', 'Thunder is forecast. Stay close to shelter, or take it indoors.']);
     else if (m.thunderHours > 0) out.push(['bolt', 'A thunderstorm is possible. Keep an eye on the sky and know where to shelter.']);
     else if (m.precipPct >= 50) out.push(['road', 'Showers likely. Watch for slippery spots; riders, brake earlier and avoid painted lines.']);
@@ -96,17 +109,17 @@
     L.days.slice(0, 3).forEach((d, di) => ['am', 'pm'].forEach(k => {
       const w = d.windows[k], s = w && w.scores && w.scores[sport];
       if (!s || !w.metrics) return;
-      if (d.date === now.date && WIN[k].end <= now.hour) return;
+      if (d.date === now.date && W()[k].end <= now.hour) return;
       upcoming.push({d, di, k, s, w});
     }));
     const next = upcoming[0];
     if (!next) { $('headline').textContent = 'No forecast yet for your next window.'; $('next').hidden = true; return; }
     const when = x => `${x.d.date === now.date ? (x.k === 'am' ? 'This morning' : 'This evening') : x.di === 1 || x.d.date > now.date ? (x.k === 'am' ? (x.d.date === nextDate(now.date) ? 'Tomorrow morning' : dayName(x.d.date, {weekday: 'long'}) + ' morning') : (x.d.date === nextDate(now.date) ? 'Tomorrow evening' : dayName(x.d.date, {weekday: 'long'}) + ' evening')) : ''}`;
     const best = upcoming.slice(0, 3).reduce((a, b) => b.s.index > a.s.index ? b : a, next);
-    $('headline').textContent = next.s.band === 'go' ? `Great time to get out: ${when(next).toLowerCase()}.` : next.s.band === 'caution' ? `${when(next)} is doable, with care.` : `${when(next)} looks rough. Plan around it.`;
+    $('headline').textContent = next.s.band === 'go' ? `Great time ${mode === 'swim' ? 'for a swim' : 'to get out'}: ${when(next).toLowerCase()}.` : next.s.band === 'caution' ? `${when(next)} is doable, with care.` : `${when(next)} looks rough. Plan around it.`;
     const box = $('next');
     box.replaceChildren(ring(next.s.index, next.s.band, 60, true),
-      el('div', {}, el('strong', {}, `${when(next)} · ${WIN[next.k].times}`), el('span', {}, next.s.advice),
+      el('div', {}, el('strong', {}, `${when(next)} · ${W()[next.k].times}`), el('span', {}, next.s.advice),
         best !== next && best.s.index > next.s.index ? el('span', {}, el('em', {}, `Better: ${when(best).toLowerCase()} (${best.s.index}/10)`)) : null));
     box.hidden = false;
   }
@@ -116,7 +129,7 @@
     const L = loc(); if (!L) return;
     const today = jaNow().date;
     $('days').replaceChildren(...L.days.map((d, i) => {
-      const dot = k => { const s = d.windows[k]?.scores?.[sport]; return el('span', {class: 'dot ' + (s ? s.band : 'none'), title: `${WIN[k].label}: ${s ? s.index + '/10, ' + WORD[s.band] : 'no data'}`}, s ? String(s.index) : '–'); };
+      const dot = k => { const s = d.windows[k]?.scores?.[sport]; return el('span', {class: 'dot ' + (s ? s.band : 'none'), title: `${W()[k].label}: ${s ? s.index + '/10, ' + WORD[s.band] : 'no data'}`}, s ? String(s.index) : '–'); };
       const b = el('button', {type: 'button', class: 'day', 'aria-pressed': String(i === dayIdx), 'aria-label': `${dayName(d.date, {weekday: 'long', day: 'numeric', month: 'long'})}`},
         el('b', {}, d.date === today ? 'Today' : dayName(d.date, {weekday: 'short'})),
         el('small', {}, dayName(d.date, {day: 'numeric', month: 'short'})),
@@ -146,7 +159,8 @@
 
   function card(key, w, day) {
     const s = w && w.scores && w.scores[sport], m = w && w.metrics;
-    const head = el('div', {class: 'when'}, el('h3', {}, icon(WIN[key].icon), WIN[key].label), el('p', {}, `${WIN[key].times}${m && m.condition ? ' · ' + m.condition : ''}`));
+    const WN = W(), head = el('div', {class: 'when'}, el('h3', {}, icon(WN[key].icon), WN[key].label), el('p', {}, `${WN[key].times}${m && m.condition ? ' · ' + m.condition : ''}`));
+    if (mode === 'swim') return swimCard(key, w, day, head);
     if (!s || !m) return el('article', {class: 'win'}, el('div', {class: 'win-top'}, head), el('p', {class: 'why'}, 'No forecast for this window yet.'));
     FLAG = flaggedTiles(s.reasons);
     return el('article', {class: 'win ' + s.band},
@@ -165,8 +179,64 @@
         stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air')));
   }
 
+  // ---------- Swim cards ----------
+  const DIR8 = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+  function swimTips(key, w, day) {
+    const m = w.metrics || {}, s = w.scores.swim, sea = w.sea, out = [], pool = loc().type === 'pool';
+    if (key === 'am' && day.sunrise && SWIM_WIN.am.start < hours(day.sunrise)) out.push(['float', `Low light until ${clock(day.sunrise)}. Bright cap${pool ? '' : ' and a tow float'}.`]);
+    if (m.thunderHours > 0) out.push(['bolt', 'Thunder possible. Get out of the water at the first rumble.']);
+    if (!pool && (s.rip === 'High' || s.rip === 'Moderate')) out.push(['rip', 'If a rip pulls you out, swim parallel to the shore, then back in.']);
+    if (!pool && s.windRel === 'offshore' && m.windKmh >= 15) out.push(['wind', `Offshore wind (${m.windKmh} km/h) can push you out. Stay close to shore.`]);
+    if (!pool && s.waterQuality && s.waterQuality !== 'Clean') out.push(['flask', `${s.rain48} mm of rain in the last 48 hours. Keep away from gully and river mouths.`]);
+    if (m.uvEffective >= 6) out.push(['cap', 'Strong sun. Water-resistant sunscreen and a rash vest.']);
+    if (pool && (m.feelsC ?? 0) >= 30) out.push(['bottle', 'Drink between sets. You still sweat in the pool.']);
+    if (!out.length || (out.length === 1 && out[0][0] === 'float' && s.band === 'go')) out.push(['smile', pool ? 'Enjoy your swim!' : 'Enjoy the water, and swim with a buddy.']);
+    return out.slice(0, 3);
+  }
+  function swimCard(key, w, day, head) {
+    const s = w && w.scores && w.scores.swim, m = w && w.metrics, L = loc(), pool = L.type === 'pool';
+    if (!s || !m || (!pool && !w.sea)) return el('article', {class: 'win'}, el('div', {class: 'win-top'}, head), el('p', {class: 'why'}, 'No forecast for this window yet.'));
+    FLAG = new Set(s.flags || []);
+    const sea = w.sea || {};
+    const windSub = s.windRel ? `${s.windRel}${m.windDirDeg != null ? ' · from ' + compass(m.windDirDeg) : ''}` : (m.windDirDeg != null ? 'from ' + compass(m.windDirDeg) : '');
+    const tiles = pool ? [
+      stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `humidity ${m.rh}%`, 'temp'),
+      stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m), 'feels'),
+      stat('rain', 'Rain', `${m.precipPct}%`, m.rainAccumMm > 0 ? `${m.rainAccumMm} mm` : 'dry', 'rain'),
+      stat('bolt', 'Thunder', m.thunderHours > 0 ? 'Possible' : 'None', m.thunderHours > 0 ? 'pools clear the water' : 'forecast', 'lightning'),
+      stat('wind', 'Wind', `${m.windKmh} km/h`, m.windDirDeg != null ? 'from ' + compass(m.windDirDeg) : '', 'wind'),
+      stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : '', 'uv'),
+      stat('sunrise', 'Sunrise', clock(day.sunrise), '', null),
+      stat('sunset', 'Sunset', clock(day.sunset), '', null),
+    ] : [
+      stat('wave', 'Waves', sea.waveM != null ? `${sea.waveM} m` : '—', sea.periodS != null ? `${Math.round(sea.swellPeriodS ?? sea.periodS)} s period` : '', 'waves'),
+      stat('wind', 'Wind', `${m.windKmh} km/h`, windSub, 'wind'),
+      stat('rip', 'Rip risk', s.rip || '—', s.rip === 'Low' ? 'calm' : s.rip === 'High' ? 'stay out' : 'take care', 'rip'),
+      stat('current', 'Current', sea.currentKmh != null ? `${sea.currentKmh} km/h` : '—', sea.currentDirDeg != null ? `to the ${DIR8[Math.round(sea.currentDirDeg / 45) % 8]}` : '', 'current'),
+      stat('thermo', 'Sea', sea.seaTempC != null ? `${sea.seaTempC}°C` : '—', sea.seaTempC > 30 ? 'very warm' : 'comfortable', 'sea'),
+      stat('flask', 'Water quality', s.waterQuality || '—', s.rain48 != null ? `${s.rain48} mm rain, 48 h` : '', 'water'),
+      stat('bolt', 'Thunder', m.thunderHours > 0 ? 'Possible' : 'None', 'forecast', 'lightning'),
+      stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : '', 'uv'),
+    ];
+    return el('article', {class: 'win ' + s.band},
+      el('div', {class: 'win-top'}, head, ring(s.index, s.band, 64)),
+      el('p', {class: 'verdict'}, `${WORD[s.band]} · ${s.advice}`),
+      el('ul', {class: 'tips'}, swimTips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
+      s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
+      el('dl', {class: 'stats'}, ...tiles));
+  }
+
   function renderHourly(day) {
-    const inWin = t => { const h = hours(t); return (h >= 4.5 && h <= 7) || (h >= 16.5 && h <= 18.5); };
+    const WN = W(), inWin = t => { const h = hours(t); return (h >= WN.am.start && h <= WN.am.end) || (h >= WN.pm.start && h <= WN.pm.end); };
+    if (mode === 'swim' && loc().type !== 'pool') {
+      $('hourly').replaceChildren(
+        el('thead', {}, el('tr', {}, ['Time', 'Waves', 'Period', 'Sea', 'Wind', 'Rain', 'UV', 'Sky'].map(h => el('th', {scope: 'col'}, h)))),
+        el('tbody', {}, (day.hourly || []).map(r => el('tr', {class: inWin(r.t) ? 'in-window' : ''},
+          el('td', {}, clock(r.t)), el('td', {}, r.wave != null ? `${r.wave.toFixed(1)} m` : '—'), el('td', {}, r.period != null ? `${Math.round(r.period)} s` : '—'),
+          el('td', {}, r.sst != null ? `${r.sst.toFixed(1)}°` : '—'), el('td', {}, `${Math.round(r.wind)} ${compass(r.dir)}`),
+          el('td', {}, `${r.pop ?? '—'}%`), el('td', {}, r.uv != null ? Math.round(r.uv) : '—'), el('td', {}, wmo(r.code))))));
+      return;
+    }
     $('hourly').replaceChildren(
       el('thead', {}, el('tr', {}, ['Time', 'Temp', 'Feels', 'Humidity', 'Rain', 'mm', 'Wind', 'Gust', 'UV', 'Sky'].map(h => el('th', {scope: 'col'}, h)))),
       el('tbody', {}, (day.hourly || []).map(r => el('tr', {class: inWin(r.t) ? 'in-window' : ''},
@@ -185,6 +255,26 @@
     renderHourly(day);
   }
 
+  const EXPLAIN = {
+    land: ['Each window starts at 10 and loses points for heat, humidity, rain, thunderstorms, heat stress, sticky air, strong sun, gusts, wet roads and poor air quality. Thunderstorms or dangerous heat cap it at 4. One score covers running, walking and riding.',
+      'Morning window 4:30–7:00 AM, evening window 4:30–6:30 PM, Jamaica time.'],
+    swim: ['Open water starts at 10 and loses points for swell, rip risk, onshore wind, rain in the last 48 hours (water quality) and very warm water. Thunder, seas over 1.5 m or a high rip risk cap it at 4. Pools lose points for thunder, heavy showers, heat on deck and strong sun.',
+      'Morning window 5:30–8:00 AM, evening window 4:30–6:30 PM, Jamaica time. Sea forecasts are models: always look at the water before you get in.'],
+  };
+  function fillPlaces() {
+    const sel = $('place'), list = places();
+    sel.replaceChildren(...list.map(l => el('option', {value: l.key}, l.area ? `${l.name}, ${l.area}` : l.name)));
+    if (!list.some(l => l.key === place)) place = list[0]?.key || '';
+    sel.value = place;
+    document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    $('explain-1').textContent = EXPLAIN[mode][0]; $('explain-2').textContent = EXPLAIN[mode][1];
+  }
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m; sport = mode === 'swim' ? 'swim' : 'mixed'; store.set('jwa.mode', mode);
+    place = store.get(placeKey(), ''); dayIdx = 0; fillPlaces(); render();
+  }
+
   async function load() {
     try {
       const res = await fetch('data/forecast.json?t=' + Date.now(), {cache: 'no-store'});
@@ -192,10 +282,10 @@
       data = await res.json();
     } catch { $('headline').textContent = 'The forecast could not be loaded. Please try again shortly.'; $('updated').textContent = ''; return; }
     const sel = $('place');
-    sel.replaceChildren(...data.locations.map(l => el('option', {value: l.key}, l.area ? `${l.name}, ${l.area}` : l.name)));
-    if (!data.locations.some(l => l.key === place)) place = data.locations[0]?.key || '';
-    sel.value = place;
-    sel.addEventListener('change', () => { place = sel.value; store.set('rr.place', place); dayIdx = 0; render(); });
+    if (!data.locations.some(l => l.sport === 'swim')) { $('mode').hidden = true; mode = 'land'; sport = 'mixed'; }
+    fillPlaces();
+    sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = 0; render(); });
+    document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
     const gen = new Date(data.generatedAt);
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
     if (Date.now() - gen.getTime() > 8 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 8 hours old. The latest update may have failed.'; $('stale').hidden = false; }

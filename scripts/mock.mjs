@@ -29,3 +29,21 @@ export function mockForecast(locs, days) {
   });
   return {wx, aq};
 }
+
+// Sample sea conditions in Open-Meteo Marine's shape (MOCK=1 only). Calm mornings, choppier afternoons, a rough day 4.
+export function mockMarine(locs, days) {
+  const TZ = 'America/Jamaica';
+  const today = new Intl.DateTimeFormat('en-CA', {timeZone: TZ}).format(new Date());
+  const dates = [];
+  for (let d = 0; d < days; d++) { const x = new Date(today + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + d); dates.push(x.toISOString().slice(0, 10)); }
+  const time = dates.flatMap(d => Array.from({length: 24}, (_, h) => `${d}T${String(h).padStart(2, '0')}:00`));
+  return locs.map((l, li) => {
+    if (l.sport !== 'swim' || l.type !== 'sea') return null;
+    const f = fn => time.map((t, i) => fn(Number(t.slice(11, 13)), Math.floor(i / 24), li));
+    return {hourly: {time,
+      wave_height: f((h, d, k) => +((d === 3 ? 1.7 : 0.35 + k * 0.12) + (h >= 12 ? 0.35 : 0)).toFixed(2)),
+      wave_period: f((h, d) => d === 3 ? 11 : 6.5), wave_direction: f(() => 120),
+      swell_wave_height: f((h, d) => d === 3 ? 1.4 : 0.3), swell_wave_period: f((h, d) => d === 3 ? 11.5 : 7),
+      sea_surface_temperature: f(() => 28.6), ocean_current_velocity: f(() => 0.4), ocean_current_direction: f(() => 270)}};
+  });
+}
