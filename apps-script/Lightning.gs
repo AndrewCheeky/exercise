@@ -1,22 +1,27 @@
 /**
  * Jamaica We Active! – Lightning watch (Xweather)
  * -------------------------------------------------
- * A small, separate Apps Script project. Every 5 minutes (4 AM–9 PM Jamaica time) it asks
- * Xweather for the last 5 minutes of lightning in two 100 km circles that cover Jamaica,
- * keeps 45 minutes of history on a ~2 km grid, and serves it as JSON to the website.
+ * Add this as a new file (Lightning.gs) in the existing Wx-Exercise5day Apps Script project.
+ * Every 5 minutes (4 AM–9 PM Jamaica time) it asks Xweather for the last 5 minutes of
+ * lightning in two 100 km circles that cover Jamaica, keeps 45 minutes of history on a
+ * ~2 km grid, and serves it to the website at  …/exec?action=lightning
  * The website works out the distance on the visitor's phone, so their GPS never leaves it.
  *
  * Setup (once):
- *  1. script.google.com → New project → paste this file.
- *  2. Project Settings → Script Properties → add XWEATHER_ID and XWEATHER_SECRET
+ *  1. Add this file to the Wx-Exercise5day project.
+ *  2. In Code.gs doGet, add the lightning route as the FIRST line after "action" is read,
+ *     before setupExwxOps() and the forecast build, so it stays fast:
+ *        if (action === 'lightning') return lightningFeed_();
+ *  3. Project Settings → Script Properties → add XWEATHER_ID and XWEATHER_SECRET
  *     (optional: LIGHTNING_MONTHLY_CAP, default 14000).
- *  3. Run testLightning() and allow access. The log shows whether data comes back.
- *  4. Run installLightningTrigger().
- *  5. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
- *     Send the /exec URL (it is not secret).
+ *  4. Run testLightning() and allow the new permission. The log shows whether data comes back.
+ *  5. Run installLightningTrigger().
+ *  6. Deploy → Manage deployments → edit the existing web app → Version: New version → Deploy.
+ *     The /exec URL stays the same. Access must be "Anyone" for the website to read it.
  *
  * Budget: 17 hours × 12 polls × 2 calls = 408 calls a day ≈ 12,650 in a 31-day month.
  * It stops calling for the rest of the month if the counter would pass the cap.
+ * All keys here start with LW_ so nothing clashes with the email script's cache or properties.
  */
 
 const LW = {
@@ -30,8 +35,8 @@ const LW = {
   TZ: 'America/Jamaica',
 };
 
-/** Web app: GET …/exec returns the current lightning picture. */
-function doGet() {
+/** Web app route: GET …/exec?action=lightning returns the current lightning picture. */
+function lightningFeed_() {
   const props = PropertiesService.getScriptProperties();
   const meta = JSON.parse(props.getProperty('LW_META') || '{}');
   const cells = lwLoadCells_();
