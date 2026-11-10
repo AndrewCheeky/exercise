@@ -308,6 +308,9 @@ async function main() {
       days: main.days.map(d => ({date: d.date, am: brief(d.windows.am?.scores?.mixed), pm: brief(d.windows.pm?.scores?.mixed)}))});
   }
   await writeFile(resolve(OUT, 'data', 'summary.json'), JSON.stringify(summary));
+  // Place list for the lightning watch (Apps Script), so storm tracks are checked near every place on the site.
+  await writeFile(resolve(OUT, 'data', 'places.json'), JSON.stringify({generatedAt: result.generatedAt,
+    places: result.locations.map(l => ({t: l.territory || 'JM', name: l.name, sport: l.sport, lat: l.lat, lon: l.lon}))}));
   await islandPages();
   console.log(`WROTE ${resolve(OUT, 'data', 'forecast.json')} (${result.locations.length} locations)`);
 }

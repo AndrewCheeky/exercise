@@ -44,6 +44,34 @@
     return {level: 'clear', title: 'No lightning within 40 km.', text: 'Nothing detected in the last 30 minutes.'};
   }
 
+  // Storm tracks (Xweather Lightning Threats): where each storm is expected over the next hour, in 10-minute areas.
+  const inRing = (la, lo, ring) => { let inside = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [ai, bi] = ring[i], [aj, bj] = ring[j]; if ((bi > lo) !== (bj > lo) && la < (aj - ai) * (lo - bi) / (bj - bi) + ai) inside = !inside; } return inside; };
+  const nearRing = (la, lo, ring) => Math.min(...ring.map(([a, b]) => km(la, lo, a, b)));
+  function track(ref) {
+    const t = feed && feed.threats;
+    if (!t || !Array.isArray(t.storms) || !t.storms.length) return null;
+    const now = Date.now() / 1000;
+    let hit = null, near = null;
+    for (const st of t.storms) {
+      for (const [t0, t1, ring] of st.periods) {
+        if (!ring || ring.length < 3 || t1 < now) continue;
+        if (inRing(ref.lat, ref.lon, ring) || nearRing(ref.lat, ref.lon, ring) <= 3) {
+          if (!hit || t0 < hit.t0) hit = {st, t0};
+          break;
+        }
+      }
+      const d = Math.min(...st.periods.filter(p => p[1] >= now).map(p => nearRing(ref.lat, ref.lon, p[2])));
+      if (isFinite(d) && (!near || d < near.d)) near = {st, d};
+    }
+    const moving = st => st.kph != null && st.dirToDEG != null ? `moving ${dir(st.dirToDEG)} at ${st.kph} km/h` : 'on the move';
+    if (hit) {
+      const min = Math.max(0, (hit.t0 - now) / 60);
+      return {eta: min, line: `Storm ${moving(hit.st)}, ${min < 7 ? 'likely over you within minutes' : `likely to reach you in about ${Math.round(min / 5) * 5} minutes`}${hit.st.severe ? ' (a strong storm)' : ''}.`};
+    }
+    if (near && near.d <= 40 && /HIGH|MEDIUM/.test(near.st.reliability || '')) return {eta: null, line: `The nearest storm is ${moving(near.st)}; its forecast track keeps it away from you for the next hour.`};
+    return null;
+  }
+
   function render() {
     if (!place && !gps) return;
     const ref = useGps && gps ? {lat: gps.lat, lon: gps.lon, name: 'you'} : place;
@@ -54,9 +82,15 @@
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
     else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: 'Live lightning is checked around Jamaica only for now. Watch the sky and listen for thunder.'};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
-      text: feed.status === 'sleeping' ? 'It runs from 4 AM to 9 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
+      text: feed.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
+    const tr = fresh && covered(ref) ? track(ref) : null;
+    if (tr) {
+      const line = useGps && gps ? tr.line : tr.line.replace(/\byou\b/g, ref.name);
+      if (s.level === 'clear' && tr.eta != null) s = {level: 'watch', title: 'Storm heading your way.', text: line + ' Plan to be indoors before it arrives.'};
+      else if (s.level !== 'clear' && s.level !== 'off') s = {...s, text: s.text + ' ' + line};
+    }
     const gpsBtn = `<button type="button" class="lw-gps" aria-pressed="${useGps && !!gps}">${GPS}<span>${useGps && gps ? 'Using your location' : 'Use my location'}</span></button>`;
     // Nothing nearby (or watch not running): one slim line, so the forecast cards come first.
     if (s.level === 'clear' || s.level === 'off') {
