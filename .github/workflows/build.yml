@@ -5,13 +5,15 @@ on:
   push:
     branches: [main]
   schedule:
-    # Three runs a day (Jamaica time = UTC-5, no daylight saving):
+    # Four runs a day (Jamaica time = UTC-5, no daylight saving):
     #   3:40 AM   fresh before the 4:30 AM run/ride and 5:30 AM swim windows
     #   12:00 PM  for afternoon swimmers
     #   4:00 PM   for the 4:30 PM evening window
+    #   6:30 PM   for planning tomorrow morning the night before
     # GitHub can start scheduled runs late (sometimes 15–30 minutes).
     - cron: '40 8 * * *'
     - cron: '0 17,21 * * *'
+    - cron: '30 23 * * *'
 
 permissions:
   contents: read
