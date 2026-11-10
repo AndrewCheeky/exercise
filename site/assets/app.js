@@ -256,10 +256,18 @@
         el('td', {}, `${Math.round(r.gust)}`), el('td', {}, r.uv != null ? Math.round(r.uv) : '—'), el('td', {}, wmo(r.code))))));
   }
 
+  // "Jamaica We Active!" or "Cayman We Active!" depending on the island of the place picked.
+  function brandFor(L) {
+    const t = (data.territories && data.territories[L.territory || 'JM']) || {brand: 'Jamaica'};
+    const b = document.querySelector('.brand > span:last-child');
+    if (b) b.innerHTML = `${t.brand.toUpperCase()} <i>WE</i> <b>ACTIVE!</b>`;
+    document.title = `${t.brand} We Active! | Your best time to run, walk, ride or swim`;
+  }
+
   function render() {
     const L = loc(); if (!L) return;
     if (dayIdx >= L.days.length) dayIdx = 0;
-    hero(); renderDays();
+    brandFor(L); hero(); renderDays();
     document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon}}));
     const day = L.days[dayIdx];
     $('windows').replaceChildren(card('am', day.windows.am, day), card('pm', day.windows.pm, day));
@@ -274,10 +282,15 @@
   };
   function fillPlaces() {
     const sel = $('place'), list = places();
-    sel.replaceChildren(...list.map(l => el('option', {value: l.key}, l.area ? `${l.name}, ${l.area}` : l.name)));
+    const opt = l => el('option', {value: l.key}, l.area ? `${l.name}, ${l.area}` : l.name);
+    const terrs = [...new Set(list.map(l => l.territory || 'JM'))];
+    // More than one island: group the places under each island's name.
+    sel.replaceChildren(...(terrs.length > 1
+      ? terrs.map(t => el('optgroup', {label: (data.territories && data.territories[t] && data.territories[t].name) || t}, ...list.filter(l => (l.territory || 'JM') === t).map(opt)))
+      : list.map(opt)));
     if (!list.some(l => l.key === place)) {
       // First visit (or the saved place is gone): Kingston for run & ride, the National Aquatic Centre for swimming.
-      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
+      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name) && (l.territory || 'JM') === 'JM') || list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
       place = (def || list[0])?.key || '';
     }
     sel.value = place;

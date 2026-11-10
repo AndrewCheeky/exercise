@@ -10,6 +10,8 @@ import {marineWindow, seaScore, poolScore} from './swim-rules.mjs';
 const TZ = 'America/Jamaica';
 const OUT = resolve(process.env.OUTPUT_DIR || '_site');
 const WINDOWS = {am: {label: 'Morning', start: 4.5, end: 7}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
+// Territories (islands). All use UTC-5 all year for now (Jamaica and Cayman), so one time zone works.
+const TERRITORIES = {JM: {name: 'Jamaica', brand: 'Jamaica'}, KY: {name: 'Cayman Islands', brand: 'Cayman'}};
 const SWIM_WINDOWS = {am: {label: 'Morning', start: 5.5, end: 8}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
 const MARINE = ['wave_height', 'wave_period', 'wave_direction', 'swell_wave_height', 'swell_wave_period', 'sea_surface_temperature', 'ocean_current_velocity', 'ocean_current_direction'];
 const DAYS = 7;
@@ -50,7 +52,8 @@ function rowsToLocations(head, rows) {
   return rows.map(r => ({name: String(r[col.name] ?? '').trim(), lat: Number(r[col.lat]), lon: Number(r[col.lon]),
     area: col.area != null ? String(r[col.area] ?? '').trim() : '', sport: col.sport != null ? String(r[col.sport] ?? '').trim().toLowerCase() : 'both',
     key: col.key != null && r[col.key] ? slug(r[col.key]) : null,
-    type: col.type != null ? String(r[col.type] ?? '').trim().toLowerCase() : '', facing: col.facing != null && String(r[col.facing] ?? '').trim() !== '' ? Number(r[col.facing]) : null}));
+    type: col.type != null ? String(r[col.type] ?? '').trim().toLowerCase() : '', facing: col.facing != null && String(r[col.facing] ?? '').trim() !== '' ? Number(r[col.facing]) : null,
+    territory: col.territory != null ? String(r[col.territory] ?? '').trim().toUpperCase() : ''}));
 }
 
 async function loadLocations() {
@@ -84,22 +87,26 @@ async function loadLocations() {
       list = rows.map(r => ({name: r[col.name]?.trim(), lat: Number(r[col.lat]), lon: Number(r[col.lon]),
         area: col.area != null ? r[col.area]?.trim() : '', sport: col.sport != null ? (r[col.sport] || '').trim().toLowerCase() : 'both',
         key: col.key != null && r[col.key] ? slug(r[col.key]) : null,
-        type: col.type != null ? (r[col.type] || '').trim().toLowerCase() : '', facing: col.facing != null && (r[col.facing] || '').trim() !== '' ? Number(r[col.facing]) : null}));
+        type: col.type != null ? (r[col.type] || '').trim().toLowerCase() : '', facing: col.facing != null && (r[col.facing] || '').trim() !== '' ? Number(r[col.facing]) : null,
+        territory: col.territory != null ? (r[col.territory] || '').trim().toUpperCase() : ''}));
       console.log(`LOCATIONS: ${list.length} rows from the Google Sheet`);
     } catch (e) { console.warn(`LOCATIONS: sheet unavailable (${e.message}); using data/locations.json`); }
   }
   if (!list.length) list = JSON.parse(await readFile('data/locations.json', 'utf8'));
-  // Swimming: rows with sport "swim". Until the sheet has any, use the starter list in data/swim-spots.json.
-  if (!list.some(l => String(l.sport || '').toLowerCase() === 'swim')) {
-    const starter = JSON.parse(await readFile('data/swim-spots.json', 'utf8'));
-    console.log(`SWIM: no swim rows in the sheet; using ${starter.length} starter spots from data/swim-spots.json`);
-    list = list.concat(starter);
+  // Starter places: for each island and mode (run & ride / swim) that has no rows in the sheet yet, use the
+  // starter list (data/swim-spots.json for Jamaica swimming, data/cayman.json for Cayman). Sheet rows win.
+  const group = l => `${String(l.territory || 'JM').toUpperCase()}:${String(l.sport || '').toLowerCase() === 'swim' ? 'swim' : 'land'}`;
+  const inSheet = new Set(list.map(group));
+  for (const file of ['data/swim-spots.json', 'data/cayman.json']) {
+    const starter = JSON.parse(await readFile(file, 'utf8')).filter(l => !inSheet.has(group(l)));
+    if (starter.length) { console.log(`STARTER: ${starter.length} places from ${file} (${[...new Set(starter.map(group))].join(', ')})`); list = list.concat(starter); }
   }
   const seen = new Set();
   return list.filter(l => {
     if (!l.name || !Number.isFinite(l.lat) || !Number.isFinite(l.lon) || Math.abs(l.lat) > 90 || Math.abs(l.lon) > 180) { console.warn('LOCATION SKIPPED (bad name or coordinates):', l.name); return false; }
     l.key = l.key || slug(l.name);
     if (!['run', 'cycle', 'both', 'swim'].includes(l.sport)) l.sport = 'both';
+    l.territory = TERRITORIES[String(l.territory || '').toUpperCase()] ? String(l.territory).toUpperCase() : 'JM';
     if (l.sport === 'swim') {
       l.type = l.type === 'pool' ? 'pool' : 'sea';
       l.facing = Number.isFinite(Number(l.facing)) && l.facing !== null && l.facing !== '' ? ((Number(l.facing) % 360) + 360) % 360 : null;
@@ -205,7 +212,7 @@ function swimLocation(loc, w, mar, today) {
     return entry;
   });
   console.log(`${loc.name} (swim, ${loc.type}): ${days.map(d => `${d.date.slice(5)} AM ${d.windows.am.scores.swim.index} PM ${d.windows.pm.scores.swim.index}`).join(' | ')}`);
-  return {key: loc.key, name: loc.name, area: loc.area || '', sport: 'swim', type: loc.type, facing: loc.facing, lat: loc.lat, lon: loc.lon, days};
+  return {key: loc.key, name: loc.name, area: loc.area || '', territory: loc.territory, sport: 'swim', type: loc.type, facing: loc.facing, lat: loc.lat, lon: loc.lon, days};
 }
 
 async function main() {
@@ -214,7 +221,7 @@ async function main() {
   const {wx, aq, marine} = await fetchForecasts(locs);
   const today = new Intl.DateTimeFormat('en-CA', {timeZone: TZ}).format(new Date());
   const result = {generatedAt: new Date().toISOString(), timezone: TZ, windows: WINDOWS,
-    swimWindows: SWIM_WINDOWS, source: 'Open-Meteo weather, marine and air quality (CC BY 4.0)', locations: []};
+    swimWindows: SWIM_WINDOWS, territories: TERRITORIES, source: 'Open-Meteo weather, marine and air quality (CC BY 4.0)', locations: []};
   locs.forEach((loc, li) => {
     const w = wx[li]; if (!w || !w.hourly) { console.warn('NO FORECAST for', loc.name); return; }
     if (loc.sport === 'swim') { result.locations.push(swimLocation(loc, w, marine[li], today)); return; }
@@ -235,7 +242,7 @@ async function main() {
       }
       return entry;
     });
-    result.locations.push({key: loc.key, name: loc.name, area: loc.area || '', sport: loc.sport, lat: loc.lat, lon: loc.lon, days});
+    result.locations.push({key: loc.key, name: loc.name, area: loc.area || '', territory: loc.territory, sport: loc.sport, lat: loc.lat, lon: loc.lon, days});
     console.log(`${loc.name}: ${days.map(d => `${d.date.slice(5)} AM ${d.windows.am.scores.mixed.index} PM ${d.windows.pm.scores.mixed.index}`).join(' | ')}`);
   });
   await mkdir(resolve(OUT, 'data'), {recursive: true});

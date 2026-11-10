@@ -12,6 +12,9 @@
   const BOLT = P('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'), GPS = P('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>');
   const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   const STALE_MIN = 15;
+  // Areas the lightning feed checks (the feed can send its own list). A place must sit well inside one.
+  const COVER = [[18.15, -77.75], [18.10, -76.80]], COVER_KM = 100, EDGE_KM = 20;
+  const covered = ref => (feed && Array.isArray(feed.circles) ? feed.circles : COVER).some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM);
 
   let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '';
 
@@ -49,6 +52,7 @@
     const updated = feed && feed.updated ? new Date(feed.updated).getTime() : 0;
     const fresh = feed && feed.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
+    else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: 'Live lightning is checked around Jamaica only for now. Watch the sky and listen for thunder.'};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
       text: feed.status === 'sleeping' ? 'It runs from 4 AM to 9 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
@@ -57,7 +61,7 @@
     box.innerHTML = `
       <div class="lw-icon">${BOLT}</div>
       <div class="lw-body">
-        <p class="lw-kicker">Lightning watch · ${where}${fresh ? ` · updated ${clock(updated)}` : ''}</p>
+        <p class="lw-kicker">Lightning watch · ${where}${fresh && covered(ref) ? ` · updated ${clock(updated)}` : ''}</p>
         <h2>${esc(s.title)}</h2>
         ${s.text ? `<p>${esc(s.text)}</p>` : ''}
         <p class="lw-note">${gpsMsg ? esc(gpsMsg) + ' ' : ''}No detector catches every strike. If you hear thunder, you're close enough to be struck.</p>

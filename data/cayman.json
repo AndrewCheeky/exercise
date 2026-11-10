@@ -1,0 +1,12 @@
+[
+  {"name": "George Town", "area": "Grand Cayman", "lat": 19.2866, "lon": -81.3744, "sport": "both", "territory": "KY"},
+  {"name": "Seven Mile Beach", "area": "Grand Cayman", "lat": 19.34, "lon": -81.386, "sport": "both", "territory": "KY"},
+  {"name": "West Bay", "area": "Grand Cayman", "lat": 19.375, "lon": -81.41, "sport": "both", "territory": "KY"},
+  {"name": "Bodden Town", "area": "Grand Cayman", "lat": 19.281, "lon": -81.251, "sport": "both", "territory": "KY"},
+  {"name": "East End", "area": "Grand Cayman", "lat": 19.3, "lon": -81.11, "sport": "both", "territory": "KY"},
+  {"name": "Cayman Brac", "area": "Sister Islands", "lat": 19.72, "lon": -79.8, "sport": "both", "territory": "KY"},
+  {"name": "Stingray City", "area": "North Sound", "lat": 19.376, "lon": -81.301, "sport": "swim", "type": "sea", "facing": null, "territory": "KY", "note": "sandbar in the North Sound; no single facing"},
+  {"name": "Rum Point", "area": "Grand Cayman", "lat": 19.378, "lon": -81.272, "sport": "swim", "type": "sea", "facing": 0, "territory": "KY"},
+  {"name": "Governor's Beach", "area": "Seven Mile Beach", "lat": 19.333, "lon": -81.392, "sport": "swim", "type": "sea", "facing": 270, "territory": "KY"},
+  {"name": "Lions Aquatic Centre", "area": "George Town", "lat": 19.296, "lon": -81.377, "sport": "swim", "type": "pool", "facing": null, "territory": "KY"}
+]
