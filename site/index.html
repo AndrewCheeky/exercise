@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Roboto:wght@400;500;700;900&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=3.11.0">
+<link rel="stylesheet" href="assets/style.css?v=3.12.0">
 </head>
 <body>
 <header class="hero">
@@ -44,12 +44,15 @@
       <p class="updated" id="updated">Loading…</p>
     </div>
     <nav class="days" id="days" aria-label="Choose a day"></nav>
+    <p class="legend">Left: morning · right: evening · tap a day for details</p>
   </section>
 
   <section class="windows" id="windows" aria-live="polite"></section>
 
+  <section class="hstrip" id="hstrip" aria-label="Score for each hour" hidden></section>
+
   <details class="hourly">
-    <summary><span class="ico" data-icon="clock"></span>Hour by hour</summary>
+    <summary><span class="ico" data-icon="clock"></span>Hour-by-hour details</summary>
     <div class="table-scroll"><table id="hourly"></table></div>
   </details>
 
@@ -73,7 +76,7 @@
   </div>
 </footer>
 <!-- Lightning watch: set data-url to the Wx-Exercise5day web app URL + ?action=lightning to switch it on. -->
-<script src="assets/lightning.js?v=3.11.0" data-url="https://script.google.com/macros/s/AKfycbyFY483SYd2P772OZbtMiMTD6CUUuTwLFsJBm2GLxmxmZk2uBm9oUr2N2emOf41L1_CTw/exec?action=lightning"></script>
-<script src="assets/app.js?v=3.11.0"></script>
+<script src="assets/lightning.js?v=3.12.0" data-url="https://script.google.com/macros/s/AKfycbyFY483SYd2P772OZbtMiMTD6CUUuTwLFsJBm2GLxmxmZk2uBm9oUr2N2emOf41L1_CTw/exec?action=lightning"></script>
+<script src="assets/app.js?v=3.12.0"></script>
 </body>
 </html>

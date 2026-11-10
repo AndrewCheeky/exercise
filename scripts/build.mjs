@@ -198,6 +198,12 @@ function swimLocation(loc, w, mar, today) {
   const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map(day => {
     const sunIdx = w.daily.time.indexOf(day);
     const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day, mh)};
+    for (const r of entry.hourly) {
+      const hr = Number(r.t.slice(0, 2)), m1 = windowStats(w.hourly, day, hr, hr);
+      if (!m1.hasData) continue;
+      if (loc.type === 'pool') r.s = poolScore(m1).index;
+      else { const sea1 = marineWindow(mh, day, hr, hr); if (sea1.hasData) r.s = seaScore(m1, sea1, rainBefore(w.hourly, day, hr), loc.facing).index; }
+    }
     for (const [key, win] of Object.entries(SWIM_WINDOWS)) {
       const m = windowStats(w.hourly, day, win.start, win.end);
       if (loc.type === 'pool') {
@@ -266,6 +272,11 @@ async function main() {
     const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map((day, di) => {
       const sunIdx = w.daily.time.indexOf(day);
       const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day)};
+      // A score for every hour (4 AM–8 PM) for the hour-by-hour strip.
+      for (const r of entry.hourly) {
+        const hr = Number(r.t.slice(0, 2)), mh1 = windowStats(w.hourly, day, hr, hr);
+        if (mh1.hasData) r.s = goIndex(mh1, aqWindow(aq[li], day, hr, hr), hr >= 12, 'mixed').index;
+      }
       for (const [key, win] of Object.entries(WINDOWS)) {
         const m = windowStats(w.hourly, day, win.start, win.end);
         const air = aqWindow(aq[li], day, win.start, win.end);
@@ -286,6 +297,17 @@ async function main() {
   await mkdir(resolve(OUT, 'data'), {recursive: true});
   await cp('site', OUT, {recursive: true});
   await writeFile(resolve(OUT, 'data', 'forecast.json'), JSON.stringify(result));
+  // One smaller file per island (each island page loads only its own), plus a tiny summary for the home page.
+  const summary = {generatedAt: result.generatedAt, islands: []};
+  for (const [code, t] of Object.entries(TERRITORIES)) {
+    const locsT = result.locations.filter(l => (l.territory || 'JM') === code);
+    await writeFile(resolve(OUT, 'data', code.toLowerCase() + '.json'), JSON.stringify({...result, locations: locsT}));
+    const main = locsT.find(l => l.sport !== 'swim');
+    const brief = s => s ? {index: s.index, band: s.band, advice: s.advice} : null;
+    if (main) summary.islands.push({code, name: t.name, tz: t.tz, path: t.path, place: main.name,
+      days: main.days.map(d => ({date: d.date, am: brief(d.windows.am?.scores?.mixed), pm: brief(d.windows.pm?.scores?.mixed)}))});
+  }
+  await writeFile(resolve(OUT, 'data', 'summary.json'), JSON.stringify(summary));
   await islandPages();
   console.log(`WROTE ${resolve(OUT, 'data', 'forecast.json')} (${result.locations.length} locations)`);
 }

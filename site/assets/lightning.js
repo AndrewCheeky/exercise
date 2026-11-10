@@ -57,6 +57,16 @@
       text: feed.status === 'sleeping' ? 'It runs from 4 AM to 9 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
+    const gpsBtn = `<button type="button" class="lw-gps" aria-pressed="${useGps && !!gps}">${GPS}<span>${useGps && gps ? 'Using your location' : 'Use my location'}</span></button>`;
+    // Nothing nearby (or watch not running): one slim line, so the forecast cards come first.
+    if (s.level === 'clear' || s.level === 'off') {
+      const sub = s.level === 'clear' ? `${where}${fresh ? ` · updated ${clock(updated)}` : ''}` : (s.text || where);
+      box.className = 'lightning lw-slim lw-' + s.level;
+      box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${sub}</p></div>${s.level === 'clear' ? gpsBtn : ''}`;
+      const b = box.querySelector('.lw-gps'); if (b) b.addEventListener('click', toggleGps);
+      box.hidden = false;
+      return;
+    }
     box.className = 'lightning lw-' + s.level;
     box.innerHTML = `
       <div class="lw-icon">${BOLT}</div>
@@ -66,7 +76,7 @@
         ${s.text ? `<p>${esc(s.text)}</p>` : ''}
         <p class="lw-note">${gpsMsg ? esc(gpsMsg) + ' ' : ''}No detector catches every strike. If you hear thunder, you're close enough to be struck.</p>
       </div>
-      <button type="button" class="lw-gps" aria-pressed="${useGps && !!gps}">${GPS}<span>${useGps && gps ? 'Using your location' : 'Use my location'}</span></button>`;
+      ${gpsBtn}`;
     box.querySelector('.lw-gps').addEventListener('click', toggleGps);
     box.hidden = false;
   }

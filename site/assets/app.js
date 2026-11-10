@@ -130,6 +130,10 @@
 
   function renderDays() {
     const L = loc(); if (!L) return;
+    const strip = $('days');
+    const edge = () => strip.classList.toggle('at-end', strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 4);
+    if (!strip.dataset.watch) { strip.dataset.watch = '1'; strip.addEventListener('scroll', edge, {passive: true}); window.addEventListener('resize', edge); }
+    requestAnimationFrame(edge);
     const today = jaNow().date;
     $('days').replaceChildren(...L.days.map((d, i) => {
       const dot = k => { const s = d.windows[k]?.scores?.[sport]; return el('span', {class: 'dot ' + (s ? s.band : 'none'), title: `${W()[k].label}: ${s ? s.index + '/10, ' + WORD[s.band] : 'no data'}`}, s ? String(s.index) : '–'); };
@@ -158,7 +162,35 @@
     [/hot|warm/i, 'temp'], [/windy|gust/i, 'wind'], [/sun/i, 'uv'], [/air quality/i, 'air']];
   const flaggedTiles = reasons => new Set(reasons.flatMap(r => REASON_TILE.filter(([re]) => re.test(r)).slice(0, 1).map(([, k]) => k)));
   let FLAG = new Set();
-  const stat = (ic, label, value, sub, key) => el('div', {class: 'stat' + (key && FLAG.has(key) ? ' flag' : ''), title: key && FLAG.has(key) ? 'This lowered the score' : null}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
+  const stat = (ic, label, value, sub, key) => el('div', {class: 'stat' + (key && FLAG.has(key) ? ' flag' : ''), 'data-key': key || '', title: key && FLAG.has(key) ? 'This lowered the score' : null}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
+
+  // Phones show 4 key tiles per card (plus any tile that lowered the score); "More details" shows the rest.
+  const KEY_TILES = {land: ['temp', 'rain', 'wind', 'air'], sea: ['waves', 'rip', 'wind', 'water'], pool: ['temp', 'rain', 'lightning', 'uv']};
+  function statGrid(kind, tiles) {
+    const keys = KEY_TILES[kind];
+    tiles.forEach(t => { if (t && !keys.includes(t.dataset.key)) t.classList.add('extra'); });
+    const grid = el('dl', {class: 'stats'}, ...tiles);
+    const more = el('button', {type: 'button', class: 'more', 'aria-expanded': 'false'}, 'More details');
+    more.addEventListener('click', () => { const card = more.closest('.win'); const open = card.classList.toggle('open'); more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Fewer details' : 'More details'; });
+    return [grid, more];
+  }
+
+  // Score for each hour, 4 AM–8 PM, with the window hours outlined.
+  function hourStrip(day) {
+    const rows = (day.hourly || []).filter(r => r.s != null);
+    const box = $('hstrip');
+    if (!rows.length) { box.hidden = true; return; }
+    const WN = W(), inWin = h => (h >= WN.am.start && h <= WN.am.end) || (h >= WN.pm.start && h <= WN.pm.end);
+    const bandOf = x => x >= 7 ? 'go' : x >= 5 ? 'caution' : 'avoid';
+    const lab = h => { const hh = h % 12 || 12; return `${hh}${h < 12 ? 'a' : 'p'}`; };
+    box.replaceChildren(
+      el('div', {class: 'hstrip-head'}, el('h2', {}, 'Score by the hour'), el('p', {}, 'Outlined hours are the morning and evening windows.')),
+      el('div', {class: 'hstrip-row', role: 'list'}, ...rows.map(r => {
+        const h = Number(r.t.slice(0, 2));
+        return el('div', {class: `hb ${bandOf(r.s)}${inWin(h) ? ' in' : ''}`, role: 'listitem', title: `${clock(r.t)}: ${r.s}/10`, 'aria-label': `${clock(r.t)}, ${r.s} out of 10`}, el('b', {}, String(r.s)), el('small', {}, lab(h)));
+      })));
+    box.hidden = false;
+  }
 
   // Notes for people with asthma or heart conditions (they don't change the score).
   function healthBox(h) {
@@ -181,7 +213,7 @@
       el('ul', {class: 'tips'}, tips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
       healthBox(w.health),
       s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
-      el('dl', {class: 'stats'},
+      ...statGrid('land', [
         stat('thermo', 'Temperature', `${Math.round(m.tempC)}°C`, `dew point ${Math.round(m.dewPointC)}°C`, 'temp'),
         stat('feels', 'Feels like', `${Math.round(m.feelsC ?? m.heatIndexC)}°C`, feelsWord(m), 'feels'),
         stat('drop', 'Humidity', `${m.rh}%`, m.rh >= 85 && m.tempC >= 30 ? 'hot and humid' : m.rh >= 80 && m.tempC >= 28 ? 'warm and humid' : m.rh >= 75 ? 'normal for Jamaica' : 'comfortable', 'humidity'),
@@ -189,7 +221,7 @@
         stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : '', 'wind'),
         windDir(m.windDirDeg),
         stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : '', 'uv'),
-        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air')));
+        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air')]));
   }
 
   // ---------- Swim cards ----------
@@ -236,7 +268,7 @@
       el('p', {class: 'verdict'}, `${WORD[s.band]} · ${s.advice}`),
       el('ul', {class: 'tips'}, swimTips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
       s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
-      el('dl', {class: 'stats'}, ...tiles));
+      ...statGrid(pool ? 'pool' : 'sea', tiles));
   }
 
   function renderHourly(day) {
@@ -273,6 +305,7 @@
     document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon}}));
     const day = L.days[dayIdx];
     $('windows').replaceChildren(card('am', day.windows.am, day), card('pm', day.windows.pm, day));
+    hourStrip(day);
     renderHourly(day);
   }
 
@@ -307,7 +340,9 @@
 
   async function load() {
     try {
-      const res = await fetch('data/forecast.json?t=' + Date.now(), {cache: 'no-store'});
+      // Each island page loads only its own island's file (much smaller on phones); older builds fall back to the full file.
+      let res = await fetch(`data/${TERR.toLowerCase()}.json?t=` + Date.now(), {cache: 'no-store'});
+      if (!res.ok) res = await fetch('data/forecast.json?t=' + Date.now(), {cache: 'no-store'});
       if (!res.ok) throw Error('HTTP ' + res.status);
       data = await res.json();
     } catch { $('headline').textContent = 'The forecast could not be loaded. Please try again shortly.'; $('updated').textContent = ''; return; }
