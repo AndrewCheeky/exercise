@@ -279,3 +279,25 @@ a{color:var(--orange)}
 .home-link img{width:22px;height:22px;border-radius:6px}
 .home-link:hover,.home-link:focus-visible{background:rgba(0,0,0,.55);outline:none;border-color:#fff}
 @media(max-width:760px){.brand-stack{gap:6px}.home-link{font-size:13px}}
+
+/* ---------- v3.15: "New here?" tip, score help bubble, square place menu ---------- */
+.newhere{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px 18px;margin:16px 0 0;background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:14px 18px;border-left:6px solid var(--orange)}
+.newhere .nh-ico{width:38px;height:38px;border-radius:50%;background:var(--orange-soft);color:var(--orange);display:grid;place-items:center;font-weight:800;font-size:20px}
+.newhere p{margin:0;font-size:15px;color:var(--ink-2)}
+.newhere p b{color:var(--ink)}
+.newhere .nh-scale{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.newhere button{border:0;background:var(--ink);color:#fff;font:inherit;font-weight:700;border-radius:999px;padding:0 18px;min-height:44px;cursor:pointer}
+.newhere button:focus-visible{outline:3px solid var(--orange-2);outline-offset:2px}
+.hero{overflow:visible}
+.hero-art,.hero-shade{clip-path:inset(0)}
+.next{position:relative}
+.qwrap{position:absolute;top:10px;right:10px}
+.next>div:not(.qwrap){padding-right:26px}
+.qbtn{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.15);color:#fff;font:inherit;font-weight:800;font-size:14px;cursor:pointer;display:grid;place-items:center;padding:0}
+.qbtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.qpop{position:absolute;z-index:20;top:36px;right:-6px;width:270px;background:#fff;color:var(--ink);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:12px 14px;font-size:13.5px;line-height:1.45}
+.qpop b{display:block;margin-bottom:6px;font-size:14px}
+.qpop .row{display:flex;align-items:center;gap:8px;margin:5px 0}
+.qpop .pill{white-space:nowrap;min-width:52px;text-align:center;flex:0 0 auto}
+.place{border-radius:6px;padding:2px 8px 2px 12px}
+@media(max-width:760px){.newhere{grid-template-columns:auto 1fr;padding:12px 14px}.newhere button{grid-column:1/-1;width:100%}.qpop{width:min(270px,80vw)}}

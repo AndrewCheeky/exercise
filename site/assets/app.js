@@ -123,9 +123,34 @@
     const box = $('next');
     box.replaceChildren(ring(next.s.index, next.s.band, 60, true),
       el('div', {}, el('strong', {}, `${when(next)} · ${W()[next.k].times}`), el('span', {}, next.s.advice),
-        best !== next && best.s.index > next.s.index ? el('span', {}, el('em', {}, `Better: ${when(best).toLowerCase()} (${best.s.index}/10)`)) : null));
+        best !== next && best.s.index > next.s.index ? el('span', {}, el('em', {}, `Better: ${when(best).toLowerCase()} (${best.s.index}/10)`)) : null),
+      scoreHelp());
     box.hidden = false;
   }
+  // "?" beside the hero score: a small bubble explaining the score bands.
+  function scoreHelp() {
+    const pop = el('div', {class: 'qpop', role: 'dialog', 'aria-label': 'What the score means', hidden: ''},
+      el('b', {}, 'What the score means'),
+      el('div', {class: 'row'}, el('span', {class: 'pill go'}, '7–10'), 'Go: good conditions'),
+      el('div', {class: 'row'}, el('span', {class: 'pill caution'}, '5–6'), 'Take care'),
+      el('div', {class: 'row'}, el('span', {class: 'pill avoid'}, '0–4'), 'Skip it: thunder, heat or rough seas'));
+    const btn = el('button', {type: 'button', class: 'qbtn', 'aria-label': 'What do the scores mean?', 'aria-expanded': 'false'}, '?');
+    const wrap = el('div', {class: 'qwrap'}, btn, pop);
+    const close = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', e => { e.stopPropagation(); const open = pop.hidden; pop.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+    helpClose = e => { if (!e || e.key === 'Escape' || (e.type === 'click' && !wrap.contains(e.target))) close(); };
+    return wrap;
+  }
+  let helpClose = null;   // one set of page-wide listeners, pointing at the current bubble
+  document.addEventListener('click', e => helpClose && helpClose(e));
+  document.addEventListener('keydown', e => helpClose && helpClose(e));
+  // First visit: a one-time "New here?" tip explaining the scores.
+  (function newHere() {
+    const tip = $('newhere'); if (!tip) return;
+    if (store.get('jwa.newhere', '') === 'seen') return;
+    tip.hidden = false;
+    $('newhere-ok').addEventListener('click', () => { store.set('jwa.newhere', 'seen'); tip.hidden = true; });
+  })();
   const nextDate = iso => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 
   function renderDays() {
