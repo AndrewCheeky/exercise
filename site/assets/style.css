@@ -142,6 +142,18 @@ a{color:var(--orange)}
 .foot strong{color:#fff}
 .foot a{color:#ffb38a}
 .foot p{margin:4px 0}
+.foot .islands{margin-top:10px}
+
+/* ---------- Island colour schemes (one page per island) ---------- */
+[data-territory="KY"]{--orange:#0077b6;--orange-2:#26b5d9;--orange-soft:#e6f5fb;--ink:#14303f}
+[data-territory="KY"] .hero{background:#0b3a53}
+[data-territory="KY"] .brand i{color:#bfe9f5}
+[data-territory="KY"] .greeting,[data-territory="KY"] .next em{color:#bfe9f5}
+[data-territory="KY"] .foot{background:#0b3a53}
+[data-territory="KY"] .foot a{color:#8fdcf0}
+[data-territory="KY"] .sport button[aria-pressed="true"]{box-shadow:0 4px 14px rgba(0,119,182,.45)}
+[data-territory="KY"] .brand-dot{box-shadow:0 0 0 4px rgba(38,181,217,.35)}
+[data-territory="KY"] .brand b{color:#5fd3f0}
 
 @media(max-width:760px){
   /* Phones: the picture becomes a band across the top, the text sits below it. */
@@ -164,5 +176,9 @@ a{color:var(--orange)}
   .day{padding:8px 2px 10px}.day b{font-size:13px}.day small{font-size:11px}
   .dot{min-width:20px;font-size:11px}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  [data-territory="KY"] .hero{background:#0b3a53}
+  [data-territory="KY"] .hero-shade{background:linear-gradient(180deg,rgba(8,40,58,.55) 0,rgba(8,40,58,.15) 70px,rgba(11,58,83,.35) 110px,#0b3a53 150px)}
 }
 @media(prefers-reduced-motion:reduce){.day{transition:none}.day:hover{transform:none}}

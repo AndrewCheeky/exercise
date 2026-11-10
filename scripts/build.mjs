@@ -1,7 +1,7 @@
 // Builds data/forecast.json for every location and copies the website into _site/.
 // Locations: a published Google Sheet CSV (LOCATIONS_CSV_URL) or data/locations.json.
 // Forecasts: Open-Meteo weather + air quality (free, CC BY 4.0), one batched request each.
-import {readFile, writeFile, mkdir, cp} from 'node:fs/promises';
+import {readFile, writeFile, mkdir, cp, access} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createSign} from 'node:crypto';
 import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy, healthNotes} from './index-rules.mjs';
@@ -11,7 +11,7 @@ const TZ = 'America/Jamaica';
 const OUT = resolve(process.env.OUTPUT_DIR || '_site');
 const WINDOWS = {am: {label: 'Morning', start: 4.5, end: 7}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
 // Territories (islands). All use UTC-5 all year for now (Jamaica and Cayman), so one time zone works.
-const TERRITORIES = {JM: {name: 'Jamaica', brand: 'Jamaica'}, KY: {name: 'Cayman Islands', brand: 'Cayman'}};
+const TERRITORIES = JSON.parse(await readFile('data/territories.json', 'utf8'));
 const SWIM_WINDOWS = {am: {label: 'Morning', start: 5.5, end: 8}, pm: {label: 'Evening', start: 16.5, end: 18.5}};
 const MARINE = ['wave_height', 'wave_period', 'wave_direction', 'swell_wave_height', 'swell_wave_period', 'sea_surface_temperature', 'ocean_current_velocity', 'ocean_current_direction'];
 const DAYS = 7;
@@ -215,6 +215,34 @@ function swimLocation(loc, w, mar, today) {
   return {key: loc.key, name: loc.name, area: loc.area || '', territory: loc.territory, sport: 'swim', type: loc.type, facing: loc.facing, lat: loc.lat, lon: loc.lon, days};
 }
 
+// One page per island. Jamaica is index.html; every other island gets <path>/index.html (e.g. cayman/),
+// built from the same page with its own name, hero photo and colours (style.css [data-territory=..]).
+async function islandPages() {
+  const base = await readFile('site/index.html', 'utf8');
+  const exists = async f => { try { await access(resolve('site', f)); return true; } catch { return false; } };
+  const links = Object.entries(TERRITORIES).map(([code, t]) => ({code, t}));
+  const other = code => links.filter(l => l.code !== code).map(l => `<a href="${l.t.path ? l.t.path + '/' : './'}">${l.t.name}</a>`).join(' · ');
+  for (const {code, t} of links) {
+    let html = base.replace('<html lang="en" data-territory="JM">', `<html lang="en" data-territory="${code}">`)
+      .replace(/Jamaica We Active!/g, `${t.brand} We Active!`).replace(/around Jamaica/g, `around ${t.name}`)
+      .replace('JAMAICA <i>WE</i> <b>ACTIVE!</b>', `${t.brand.toUpperCase()} <i>WE</i> <b>ACTIVE!</b>`)
+      .replace('aria-label="Jamaica We Active home"', `aria-label="${t.brand} We Active home"`)
+      .replace('<meta name="theme-color" content="#242428">', `<meta name="theme-color" content="${t.theme}">`)
+      .replace('<!--ISLANDS-->', `<p class="islands">Other islands: ${other(code)}</p>`);
+    if (code !== 'JM' && await exists(t.hero)) {
+      html = html.replace('src="assets/hero.jpg"', `src="${t.hero}"`)
+        .replace('srcset="assets/hero-900.jpg 900w, assets/hero.jpg 1800w"', (await exists(t.hero900)) ? `srcset="${t.hero900} 900w, ${t.hero} 1800w"` : `srcset="${t.hero} 1800w"`)
+        .replace(/alt="A cyclist in a helmet[^"]*"/, `alt="${t.heroAlt}"`);
+    }
+    if (!t.path) { await writeFile(resolve(OUT, 'index.html'), html); continue; }
+    // Sub-folder page: <base> keeps assets/ and data/ pointing at the shared files one level up.
+    html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="../">').replace('class="brand" href="./"', `class="brand" href="${t.path}/"`);
+    await mkdir(resolve(OUT, t.path), {recursive: true});
+    await writeFile(resolve(OUT, t.path, 'index.html'), html);
+    console.log(`PAGE ${t.path}/ for ${t.name}`);
+  }
+}
+
 async function main() {
   const locs = await loadLocations();
   if (!locs.length) throw Error('No valid locations');
@@ -248,6 +276,7 @@ async function main() {
   await mkdir(resolve(OUT, 'data'), {recursive: true});
   await cp('site', OUT, {recursive: true});
   await writeFile(resolve(OUT, 'data', 'forecast.json'), JSON.stringify(result));
+  await islandPages();
   console.log(`WROTE ${resolve(OUT, 'data', 'forecast.json')} (${result.locations.length} locations)`);
 }
 

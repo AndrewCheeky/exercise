@@ -1,0 +1,6 @@
+{
+  "JM": {"name": "Jamaica", "brand": "Jamaica", "path": "", "hero": "assets/hero.jpg", "hero900": "assets/hero-900.jpg",
+         "heroAlt": "A cyclist in a helmet stops for a drink of water on a hilltop path", "theme": "#242428"},
+  "KY": {"name": "Cayman Islands", "brand": "Cayman", "path": "cayman", "hero": "assets/hero-ky.jpg", "hero900": "assets/hero-ky-900.jpg",
+         "heroAlt": "Outdoor exercise in the Cayman Islands", "theme": "#0b3a53"}
+}

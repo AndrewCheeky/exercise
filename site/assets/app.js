@@ -72,11 +72,13 @@
   }
 
   // Two modes: run & ride (one shared score, the email's mixed mode) and swim (sea or pool).
+  // Each island has its own page (index.html = Jamaica, cayman/ = Cayman Islands …), set by <html data-territory>.
+  const TERR = document.documentElement.dataset.territory || 'JM';
   let mode = store.get('jwa.mode', 'land') === 'swim' ? 'swim' : 'land';
-  const placeKey = () => mode === 'swim' ? 'jwa.swimPlace' : 'rr.place';
+  const placeKey = () => TERR === 'JM' ? (mode === 'swim' ? 'jwa.swimPlace' : 'rr.place') : `jwa.${TERR}.${mode}Place`;
   let data = null, place = store.get(placeKey(), ''), dayIdx = 0;
   let sport = mode === 'swim' ? 'swim' : 'mixed';
-  const inMode = l => mode === 'swim' ? l.sport === 'swim' : l.sport !== 'swim';
+  const inMode = l => (l.territory || 'JM') === TERR && (mode === 'swim' ? l.sport === 'swim' : l.sport !== 'swim');
   const places = () => data ? data.locations.filter(inMode) : [];
   const loc = () => { const list = places(); return list.find(l => l.key === place) || list[0]; };
   const SWIM_WIN = {am: {label: 'Morning', times: '5:30–8:00 AM', start: 5.5, end: 8, icon: 'sunrise'}, pm: {label: 'Evening', times: '4:30–6:30 PM', start: 16.5, end: 18.5, icon: 'sunset'}};
@@ -290,7 +292,7 @@
       : list.map(opt)));
     if (!list.some(l => l.key === place)) {
       // First visit (or the saved place is gone): Kingston for run & ride, the National Aquatic Centre for swimming.
-      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name) && (l.territory || 'JM') === 'JM') || list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
+      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
       place = (def || list[0])?.key || '';
     }
     sel.value = place;
@@ -310,7 +312,7 @@
       data = await res.json();
     } catch { $('headline').textContent = 'The forecast could not be loaded. Please try again shortly.'; $('updated').textContent = ''; return; }
     const sel = $('place');
-    if (!data.locations.some(l => l.sport === 'swim')) { $('mode').hidden = true; mode = 'land'; sport = 'mixed'; }
+    if (!data.locations.some(l => l.sport === 'swim' && (l.territory || 'JM') === TERR)) { $('mode').hidden = true; mode = 'land'; sport = 'mixed'; }
     fillPlaces();
     sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = 0; render(); });
     document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
