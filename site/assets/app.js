@@ -258,12 +258,12 @@
         el('td', {}, `${Math.round(r.gust)}`), el('td', {}, r.uv != null ? Math.round(r.uv) : '—'), el('td', {}, wmo(r.code))))));
   }
 
-  // "Jamaica We Active!" or "Cayman We Active!" depending on the island of the place picked.
+  // "Jamaica We Outside" or "Cayman We Outside" depending on the island of the place picked.
   function brandFor(L) {
     const t = (data.territories && data.territories[L.territory || 'JM']) || {brand: 'Jamaica'};
     const b = document.querySelector('.brand > span:last-child');
-    if (b) b.innerHTML = `${t.brand.toUpperCase()} <i>WE</i> <b>ACTIVE!</b>`;
-    document.title = `${t.brand} We Active! | Your best time to run, walk, ride or swim`;
+    if (b) b.innerHTML = `${t.brand.toUpperCase()} <i>WE</i> <b>OUTSIDE</b>`;
+    document.title = `${t.brand} We Outside | Your best time to run, walk, ride or swim`;
   }
 
   function render() {

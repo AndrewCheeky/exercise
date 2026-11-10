@@ -224,9 +224,9 @@ async function islandPages() {
   const other = code => links.filter(l => l.code !== code).map(l => `<a href="${l.t.path ? l.t.path + '/' : './'}">${l.t.name}</a>`).join(' · ');
   for (const {code, t} of links) {
     let html = base.replace(/<html lang="en"[^>]*>/, `<html lang="en" data-territory="${code}" data-tz="${t.tz}">`)
-      .replace(/Jamaica We Active!/g, `${t.brand} We Active!`).replace(/around Jamaica/g, `around ${t.name}`)
-      .replace('JAMAICA <i>WE</i> <b>ACTIVE!</b>', `${t.brand.toUpperCase()} <i>WE</i> <b>ACTIVE!</b>`)
-      .replace('aria-label="Jamaica We Active home"', `aria-label="${t.brand} We Active home"`)
+      .replace(/Jamaica We Outside/g, `${t.brand} We Outside`).replace(/around Jamaica/g, `around ${t.name}`)
+      .replace('JAMAICA <i>WE</i> <b>OUTSIDE</b>', `${t.brand.toUpperCase()} <i>WE</i> <b>OUTSIDE</b>`)
+      .replace('aria-label="Jamaica We Outside home"', `aria-label="${t.brand} We Outside home"`)
       .replace('<meta name="theme-color" content="#242428">', `<meta name="theme-color" content="${t.theme}">`)
       .replace('<!--ISLANDS-->', `<p class="islands">Other islands: ${other(code)}</p>`);
     if (code !== 'JM' && await exists(t.hero)) {
