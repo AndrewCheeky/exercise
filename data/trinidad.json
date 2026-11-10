@@ -1,0 +1,14 @@
+[
+  {"name": "Queen's Park Savannah", "area": "Port of Spain", "lat": 10.672, "lon": -61.515, "sport": "both", "territory": "TT"},
+  {"name": "Chaguaramas", "area": "Diego Martin", "lat": 10.68, "lon": -61.633, "sport": "both", "territory": "TT"},
+  {"name": "Maraval", "area": "Diego Martin", "lat": 10.7, "lon": -61.52, "sport": "both", "territory": "TT"},
+  {"name": "North Coast Road (Maracas)", "area": "San Juan–Laventille", "lat": 10.752, "lon": -61.432, "sport": "both", "territory": "TT"},
+  {"name": "Blanchisseuse", "area": "Tunapuna–Piarco", "lat": 10.79, "lon": -61.31, "sport": "both", "territory": "TT"},
+  {"name": "Arima", "area": "Arima", "lat": 10.637, "lon": -61.282, "sport": "both", "territory": "TT"},
+  {"name": "Chaguanas", "area": "Chaguanas", "lat": 10.517, "lon": -61.411, "sport": "both", "territory": "TT"},
+  {"name": "San Fernando", "area": "San Fernando", "lat": 10.28, "lon": -61.468, "sport": "both", "territory": "TT"},
+  {"name": "Maracas Bay", "area": "North Coast", "lat": 10.763, "lon": -61.434, "sport": "swim", "type": "sea", "facing": 0, "territory": "TT"},
+  {"name": "Las Cuevas Bay", "area": "North Coast", "lat": 10.78, "lon": -61.383, "sport": "swim", "type": "sea", "facing": 10, "territory": "TT"},
+  {"name": "Macqueripe Bay", "area": "Chaguaramas", "lat": 10.714, "lon": -61.604, "sport": "swim", "type": "sea", "facing": 350, "territory": "TT"},
+  {"name": "National Aquatic Centre (Couva)", "area": "Couva", "lat": 10.43, "lon": -61.418, "sport": "swim", "type": "pool", "facing": null, "territory": "TT"}
+]

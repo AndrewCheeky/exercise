@@ -1,6 +1,45 @@
 {
-  "JM": {"name": "Jamaica", "brand": "Jamaica", "path": "", "hero": "assets/hero.jpg", "hero900": "assets/hero-900.jpg",
-         "heroAlt": "A cyclist in a helmet stops for a drink of water on a hilltop path", "theme": "#242428"},
-  "KY": {"name": "Cayman Islands", "brand": "Cayman", "path": "cayman", "hero": "assets/hero-ky.jpg", "hero900": "assets/hero-ky-900.jpg",
-         "heroAlt": "Outdoor exercise in the Cayman Islands", "theme": "#0b3a53"}
+  "JM": {
+    "name": "Jamaica",
+    "brand": "Jamaica",
+    "path": "",
+    "hero": "assets/hero.jpg",
+    "hero900": "assets/hero-900.jpg",
+    "heroAlt": "A cyclist in a helmet stops for a drink of water on a hilltop path",
+    "theme": "#242428",
+    "tz": "America/Jamaica"
+  },
+  "KY": {
+    "name": "Cayman Islands",
+    "brand": "Cayman",
+    "path": "cayman",
+    "hero": "assets/hero-ky.jpg",
+    "hero900": "assets/hero-ky-900.jpg",
+    "heroAlt": "Outdoor exercise in the Cayman Islands",
+    "theme": "#0b3a53",
+    "tz": "America/Cayman",
+    "starter": "data/cayman.json"
+  },
+  "BB": {
+    "name": "Barbados",
+    "brand": "Barbados",
+    "path": "barbados",
+    "tz": "America/Barbados",
+    "starter": "data/barbados.json",
+    "hero": "assets/hero-bb.jpg",
+    "hero900": "assets/hero-bb-900.jpg",
+    "heroAlt": "Outdoor exercise in Barbados",
+    "theme": "#0f2a6b"
+  },
+  "TT": {
+    "name": "Trinidad and Tobago",
+    "brand": "Trinidad",
+    "path": "trinidad",
+    "tz": "America/Port_of_Spain",
+    "starter": "data/trinidad.json",
+    "hero": "assets/hero-tt.jpg",
+    "hero900": "assets/hero-tt-900.jpg",
+    "heroAlt": "Outdoor exercise in Trinidad",
+    "theme": "#1a1a1a"
+  }
 }

@@ -177,6 +177,28 @@ a{color:var(--orange)}
   .dot{min-width:20px;font-size:11px}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+/* Barbados: ultramarine and gold */
+[data-territory="BB"]{--orange:#1f45b5;--orange-2:#ffc726;--orange-soft:#eaf0ff;--ink:#16224a}
+[data-territory="BB"] .hero{background:#0f2a6b}
+[data-territory="BB"] .brand i,[data-territory="BB"] .greeting,[data-territory="BB"] .next em{color:#ffe08a}
+[data-territory="BB"] .foot{background:#0f2a6b}
+[data-territory="BB"] .foot a{color:#ffd55c}
+[data-territory="BB"] .sport button[aria-pressed="true"]{box-shadow:0 4px 14px rgba(31,69,181,.45)}
+[data-territory="BB"] .brand-dot{background:#ffc726;box-shadow:0 0 0 4px rgba(255,199,38,.35)}
+/* Trinidad and Tobago: red, black and white */
+[data-territory="TT"]{--orange:#c8102e;--orange-2:#ff4d5e;--orange-soft:#fdecee;--ink:#1d1d20}
+[data-territory="TT"] .hero{background:#1a1a1a}
+[data-territory="TT"] .brand i,[data-territory="TT"] .greeting,[data-territory="TT"] .next em{color:#ffc9cf}
+[data-territory="TT"] .foot{background:#1a1a1a}
+[data-territory="TT"] .foot a{color:#ff8a96}
+[data-territory="TT"] .sport button[aria-pressed="true"]{box-shadow:0 4px 14px rgba(200,16,46,.45)}
+[data-territory="TT"] .brand-dot{background:#c8102e;box-shadow:0 0 0 4px rgba(255,255,255,.35)}
+@media(max-width:760px){
+  [data-territory="BB"] .hero{background:#0f2a6b}
+  [data-territory="BB"] .hero-shade{background:linear-gradient(180deg,rgba(10,28,72,.55) 0,rgba(10,28,72,.15) 70px,rgba(15,42,107,.35) 110px,#0f2a6b 150px)}
+  [data-territory="TT"] .hero{background:#1a1a1a}
+  [data-territory="TT"] .hero-shade{background:linear-gradient(180deg,rgba(20,20,20,.55) 0,rgba(20,20,20,.15) 70px,rgba(26,26,26,.35) 110px,#1a1a1a 150px)}
+}
 @media(max-width:760px){
   [data-territory="KY"] .hero{background:#0b3a53}
   [data-territory="KY"] .hero-shade{background:linear-gradient(180deg,rgba(8,40,58,.55) 0,rgba(8,40,58,.15) 70px,rgba(11,58,83,.35) 110px,#0b3a53 150px)}

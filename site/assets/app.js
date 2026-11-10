@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const TZ = 'America/Jamaica';
+  const TZ = document.documentElement.dataset.tz || 'America/Jamaica';   // each island page sets its own
   const $ = id => document.getElementById(id);
   const store = {
     get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },

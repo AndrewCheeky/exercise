@@ -1,0 +1,16 @@
+[
+  {"name": "Bridgetown", "area": "St Michael", "lat": 13.0975, "lon": -59.6167, "sport": "both", "territory": "BB"},
+  {"name": "Hastings Boardwalk", "area": "Christ Church", "lat": 13.075, "lon": -59.596, "sport": "both", "territory": "BB"},
+  {"name": "Oistins", "area": "Christ Church", "lat": 13.065, "lon": -59.542, "sport": "both", "territory": "BB"},
+  {"name": "Holetown", "area": "St James", "lat": 13.187, "lon": -59.637, "sport": "both", "territory": "BB"},
+  {"name": "Speightstown", "area": "St Peter", "lat": 13.25, "lon": -59.643, "sport": "both", "territory": "BB"},
+  {"name": "Belleplaine", "area": "St Andrew", "lat": 13.242, "lon": -59.58, "sport": "both", "territory": "BB"},
+  {"name": "Bathsheba (East Coast Road)", "area": "St Joseph", "lat": 13.214, "lon": -59.525, "sport": "both", "territory": "BB"},
+  {"name": "Hackleton's Cliff", "area": "St Joseph", "lat": 13.195, "lon": -59.537, "sport": "both", "territory": "BB"},
+  {"name": "Carlisle Bay", "area": "St Michael", "lat": 13.089, "lon": -59.613, "sport": "swim", "type": "sea", "facing": 230, "territory": "BB"},
+  {"name": "Accra (Rockley) Beach", "area": "Christ Church", "lat": 13.072, "lon": -59.588, "sport": "swim", "type": "sea", "facing": 190, "territory": "BB"},
+  {"name": "Miami Beach (Enterprise)", "area": "Christ Church", "lat": 13.058, "lon": -59.556, "sport": "swim", "type": "sea", "facing": 200, "territory": "BB"},
+  {"name": "Paynes Bay", "area": "St James", "lat": 13.166, "lon": -59.64, "sport": "swim", "type": "sea", "facing": 265, "territory": "BB"},
+  {"name": "Mullins Beach", "area": "St Peter", "lat": 13.223, "lon": -59.643, "sport": "swim", "type": "sea", "facing": 270, "territory": "BB"},
+  {"name": "Barbados Aquatic Centre", "area": "St Michael", "lat": 13.091, "lon": -59.588, "sport": "swim", "type": "pool", "facing": null, "territory": "BB"}
+]

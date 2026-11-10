@@ -97,7 +97,7 @@ async function loadLocations() {
   // starter list (data/swim-spots.json for Jamaica swimming, data/cayman.json for Cayman). Sheet rows win.
   const group = l => `${String(l.territory || 'JM').toUpperCase()}:${String(l.sport || '').toLowerCase() === 'swim' ? 'swim' : 'land'}`;
   const inSheet = new Set(list.map(group));
-  for (const file of ['data/swim-spots.json', 'data/cayman.json']) {
+  for (const file of ['data/swim-spots.json', ...Object.values(TERRITORIES).map(t => t.starter).filter(Boolean)]) {
     const starter = JSON.parse(await readFile(file, 'utf8')).filter(l => !inSheet.has(group(l)));
     if (starter.length) { console.log(`STARTER: ${starter.length} places from ${file} (${[...new Set(starter.map(group))].join(', ')})`); list = list.concat(starter); }
   }
@@ -133,15 +133,15 @@ async function getJson(url, label) {
 const HOURLY = ['temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'apparent_temperature', 'precipitation_probability',
   'precipitation', 'weather_code', 'cloud_cover', 'wind_speed_10m', 'wind_gusts_10m', 'wind_direction_10m', 'uv_index', 'surface_pressure'];
 
-async function fetchForecasts(locs) {
+async function fetchForecasts(locs, tz = TZ) {
   if (MOCK) { const {mockForecast, mockMarine} = await import('./mock.mjs'); return {...mockForecast(locs, DAYS), marine: mockMarine(locs, DAYS)}; }
   const lat = locs.map(l => l.lat.toFixed(4)).join(','), lon = locs.map(l => l.lon.toFixed(4)).join(',');
   const wx = await getJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${HOURLY.join(',')}`
-    + `&daily=sunrise,sunset&timezone=${encodeURIComponent(TZ)}&forecast_days=${DAYS}&past_days=2&wind_speed_unit=kmh`, 'FORECAST');
+    + `&daily=sunrise,sunset&timezone=${encodeURIComponent(tz)}&forecast_days=${DAYS}&past_days=2&wind_speed_unit=kmh`, 'FORECAST');
   let aq = null;
   try {
     aq = await getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}`
-      + `&hourly=pm2_5,ozone,dust,us_aqi,us_aqi_pm2_5,us_aqi_ozone&timezone=${encodeURIComponent(TZ)}&forecast_days=5`, 'AIR QUALITY');
+      + `&hourly=pm2_5,ozone,dust,us_aqi,us_aqi_pm2_5,us_aqi_ozone&timezone=${encodeURIComponent(tz)}&forecast_days=5`, 'AIR QUALITY');
   } catch (e) { console.warn('AIR QUALITY unavailable:', e.message); }
   const arr = x => Array.isArray(x) ? x : [x];
   // Sea conditions for open-water swim spots (Open-Meteo Marine; cell_selection=sea picks the nearest sea cell).
@@ -151,7 +151,7 @@ async function fetchForecasts(locs) {
     try {
       const mlat = seaIdx.map(i => locs[i].lat.toFixed(4)).join(','), mlon = seaIdx.map(i => locs[i].lon.toFixed(4)).join(',');
       const m = arr(await getJson(`https://marine-api.open-meteo.com/v1/marine?latitude=${mlat}&longitude=${mlon}&hourly=${MARINE.join(',')}`
-        + `&timezone=${encodeURIComponent(TZ)}&forecast_days=${DAYS}&cell_selection=sea`, 'MARINE'));
+        + `&timezone=${encodeURIComponent(tz)}&forecast_days=${DAYS}&cell_selection=sea`, 'MARINE'));
       seaIdx.forEach((li, k) => { marine[li] = m[k] || null; });
     } catch (e) { console.warn('MARINE unavailable:', e.message); }
   }
@@ -223,7 +223,7 @@ async function islandPages() {
   const links = Object.entries(TERRITORIES).map(([code, t]) => ({code, t}));
   const other = code => links.filter(l => l.code !== code).map(l => `<a href="${l.t.path ? l.t.path + '/' : './'}">${l.t.name}</a>`).join(' · ');
   for (const {code, t} of links) {
-    let html = base.replace('<html lang="en" data-territory="JM">', `<html lang="en" data-territory="${code}">`)
+    let html = base.replace(/<html lang="en"[^>]*>/, `<html lang="en" data-territory="${code}" data-tz="${t.tz}">`)
       .replace(/Jamaica We Active!/g, `${t.brand} We Active!`).replace(/around Jamaica/g, `around ${t.name}`)
       .replace('JAMAICA <i>WE</i> <b>ACTIVE!</b>', `${t.brand.toUpperCase()} <i>WE</i> <b>ACTIVE!</b>`)
       .replace('aria-label="Jamaica We Active home"', `aria-label="${t.brand} We Active home"`)
@@ -246,12 +246,21 @@ async function islandPages() {
 async function main() {
   const locs = await loadLocations();
   if (!locs.length) throw Error('No valid locations');
-  const {wx, aq, marine} = await fetchForecasts(locs);
-  const today = new Intl.DateTimeFormat('en-CA', {timeZone: TZ}).format(new Date());
+  // Islands can be in different time zones (Jamaica/Cayman UTC-5, Barbados/Trinidad UTC-4): fetch each zone separately
+  // so every forecast is in local time.
+  const tzOf = l => (TERRITORIES[l.territory] && TERRITORIES[l.territory].tz) || TZ;
+  const wx = [], aq = [], marine = [];
+  for (const tz of [...new Set(locs.map(tzOf))]) {
+    const idx = locs.map((l, i) => tzOf(l) === tz ? i : -1).filter(i => i >= 0);
+    const part = await fetchForecasts(idx.map(i => locs[i]), tz);
+    idx.forEach((li, k) => { wx[li] = part.wx[k]; aq[li] = part.aq[k]; marine[li] = part.marine[k]; });
+  }
+  const todayIn = tz => new Intl.DateTimeFormat('en-CA', {timeZone: tz}).format(new Date());
   const result = {generatedAt: new Date().toISOString(), timezone: TZ, windows: WINDOWS,
     swimWindows: SWIM_WINDOWS, territories: TERRITORIES, source: 'Open-Meteo weather, marine and air quality (CC BY 4.0)', locations: []};
   locs.forEach((loc, li) => {
     const w = wx[li]; if (!w || !w.hourly) { console.warn('NO FORECAST for', loc.name); return; }
+    const today = todayIn(tzOf(loc));
     if (loc.sport === 'swim') { result.locations.push(swimLocation(loc, w, marine[li], today)); return; }
     const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map((day, di) => {
       const sunIdx = w.daily.time.indexOf(day);

@@ -21,7 +21,7 @@
   const km = (a, b, c, d) => { const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
   const bearing = (a, b, c, d) => { const r = Math.PI / 180, y = Math.sin((d - b) * r) * Math.cos(c * r), x = Math.cos(a * r) * Math.sin(c * r) - Math.sin(a * r) * Math.cos(c * r) * Math.cos((d - b) * r); return (Math.atan2(y, x) / r + 360) % 360; };
   const dir = deg => COMPASS[Math.round(deg / 45) % 8];
-  const clock = ms => new Intl.DateTimeFormat('en-US', {timeZone: 'America/Jamaica', hour: 'numeric', minute: '2-digit'}).format(new Date(ms));
+  const clock = ms => new Intl.DateTimeFormat('en-US', {timeZone: document.documentElement.dataset.tz || 'America/Jamaica', hour: 'numeric', minute: '2-digit'}).format(new Date(ms));
   const ago = min => min < 1 ? 'just now' : `${Math.round(min)} min ago`;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 
