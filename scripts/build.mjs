@@ -228,6 +228,7 @@ async function islandPages() {
       .replace('JAMAICA <i>WE</i> <b>OUTSIDE</b>', `${t.brand.toUpperCase()} <i>WE</i> <b>OUTSIDE</b>`)
       .replace('aria-label="Jamaica We Outside home"', `aria-label="${t.brand} We Outside home"`)
       .replace('<meta name="theme-color" content="#242428">', `<meta name="theme-color" content="${t.theme}">`)
+      .replace(/assets\/flags\/jm\.svg/g, `assets/flags/${code.toLowerCase()}.svg`)
       .replace('<!--ISLANDS-->', `<p class="islands">Other islands: ${other(code)}</p>`);
     if (code !== 'JM' && await exists(t.hero)) {
       html = html.replace('src="assets/hero.jpg"', `src="${t.hero}"`)

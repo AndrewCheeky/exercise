@@ -26,6 +26,9 @@ a{color:var(--orange)}
 .brand b{color:var(--orange-2);font-weight:700}
 .brand i{font-style:normal;color:#ffd0b5}
 .brand small{font-size:10px;letter-spacing:.32em;color:#ffd0b5;font-weight:800;margin-top:3px}
+.brand-flag{height:22px;width:auto;display:block;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.35),0 2px 6px rgba(0,0,0,.35);flex:0 0 auto}
+.foot-brand .brand-flag{height:20px}
+@media(max-width:760px){.brand-flag{height:18px}}
 .brand-dot{width:14px;height:14px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 4px rgba(252,76,2,.3)}
 .sport{display:flex;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);border-radius:999px;padding:4px}
 .sport button{display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;border:0;background:transparent;color:#fff;font:inherit;font-weight:800;padding:8px 16px;border-radius:999px;cursor:pointer;font-size:15px}
