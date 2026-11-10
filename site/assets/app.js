@@ -275,7 +275,11 @@
   function fillPlaces() {
     const sel = $('place'), list = places();
     sel.replaceChildren(...list.map(l => el('option', {value: l.key}, l.area ? `${l.name}, ${l.area}` : l.name)));
-    if (!list.some(l => l.key === place)) place = list[0]?.key || '';
+    if (!list.some(l => l.key === place)) {
+      // First visit (or the saved place is gone): Kingston for run & ride, the National Aquatic Centre for swimming.
+      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
+      place = (def || list[0])?.key || '';
+    }
     sel.value = place;
     document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     $('explain-1').textContent = EXPLAIN[mode][0]; $('explain-2').textContent = EXPLAIN[mode][1];
