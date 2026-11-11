@@ -310,3 +310,5 @@ a{color:var(--orange)}
 /* Jamaica run & ride hero (gravel lane): keep the path in view */
 [data-territory="JM"] .hero:not(.hero-swim) .hero-art{object-position:30% 62%}
 @media(max-width:760px){[data-territory="JM"] .hero:not(.hero-swim) .hero-art{object-position:20% 100%}}
+[data-territory="BB"] .hero-swim .hero-art{object-position:40% 0%}
+@media(max-width:760px){[data-territory="BB"] .hero-swim .hero-art{object-position:20% 0%}}
