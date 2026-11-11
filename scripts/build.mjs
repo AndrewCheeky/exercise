@@ -201,8 +201,10 @@ function swimLocation(loc, w, mar, today) {
     for (const r of entry.hourly) {
       const hr = Number(r.t.slice(0, 2)), m1 = windowStats(w.hourly, day, hr, hr);
       if (!m1.hasData) continue;
-      if (loc.type === 'pool') r.s = poolScore(m1).index;
-      else { const sea1 = marineWindow(mh, day, hr, hr); if (sea1.hasData) r.s = seaScore(m1, sea1, rainBefore(w.hourly, day, hr), loc.facing).index; }
+      let sc = null;
+      if (loc.type === 'pool') sc = poolScore(m1);
+      else { const sea1 = marineWindow(mh, day, hr, hr); if (sea1.hasData) sc = seaScore(m1, sea1, rainBefore(w.hourly, day, hr), loc.facing); }
+      if (sc) { r.s = sc.index; if (sc.reasons.length) r.why = sc.reasons; }   // why: what lowered this hour's score (hover on the site)
     }
     for (const [key, win] of Object.entries(SWIM_WINDOWS)) {
       const m = windowStats(w.hourly, day, win.start, win.end);
@@ -275,7 +277,7 @@ async function main() {
       // A score for every hour (4 AM–8 PM) for the hour-by-hour strip.
       for (const r of entry.hourly) {
         const hr = Number(r.t.slice(0, 2)), mh1 = windowStats(w.hourly, day, hr, hr);
-        if (mh1.hasData) r.s = goIndex(mh1, aqWindow(aq[li], day, hr, hr), hr >= 12, 'mixed').index;
+        if (mh1.hasData) { const g = goIndex(mh1, aqWindow(aq[li], day, hr, hr), hr >= 12, 'mixed'); r.s = g.index; if (g.reasons.length) r.why = g.reasons; }
       }
       for (const [key, win] of Object.entries(WINDOWS)) {
         const m = windowStats(w.hourly, day, win.start, win.end);
