@@ -82,7 +82,9 @@
   const SWIM_HERO = {JM: {src: 'assets/hero-swim-jm.jpg', srcset: 'assets/hero-swim-jm-900.jpg 900w, assets/hero-swim-jm.jpg 1800w',
     alt: 'The 50-metre pool at the National Aquatic Centre in Kingston, with the Blue Mountains behind'},
     TT: {src: 'assets/hero-swim-tt.jpg', srcset: 'assets/hero-swim-tt-900.jpg 900w, assets/hero-swim-tt.jpg 1600w',
-    alt: 'Clouds reflected in the still 50-metre pool at the National Aquatic Centre in Couva, Trinidad, with lane ropes and backstroke flags'}};
+    alt: 'Clouds reflected in the still 50-metre pool at the National Aquatic Centre in Couva, Trinidad, with lane ropes and backstroke flags'},
+    BB: {src: 'assets/hero-swim-bb.jpg', srcset: 'assets/hero-swim-bb-900.jpg 900w, assets/hero-swim-bb.jpg 1600w',
+    alt: 'Swimmers racing in a 50-metre pool in Barbados under backstroke flags, watched from the stands'}};
   const heroImg = document.querySelector('.hero-art');
   const landHero = heroImg && {src: heroImg.getAttribute('src'), srcset: heroImg.getAttribute('srcset') || '', alt: heroImg.alt};
   function heroArt() {
