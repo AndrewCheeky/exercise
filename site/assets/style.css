@@ -312,3 +312,16 @@ a{color:var(--orange)}
 @media(max-width:760px){[data-territory="JM"] .hero:not(.hero-swim) .hero-art{object-position:20% 100%}}
 [data-territory="BB"] .hero-swim .hero-art{object-position:40% 0%}
 @media(max-width:760px){[data-territory="BB"] .hero-swim .hero-art{object-position:20% 0%}}
+/* Hour-by-hour: what lowered each hour's score (hover or tap) */
+.hstrip{position:relative}
+.hb{cursor:pointer;outline:none;transition:transform .12s}
+.hb:hover,.hb.on,.hb:focus-visible{transform:translateY(-2px)}
+.hb:focus-visible{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--accent,#fc4c02)}
+.htip{position:absolute;z-index:5;width:max-content;max-width:min(300px,calc(100% - 16px));background:#1f252b;color:#fff;border-radius:10px;padding:9px 12px 10px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;line-height:1.35;pointer-events:none}
+.htip[hidden]{display:none!important}
+.htip p{margin:0}
+.htip-head b{font-size:14px}
+.htip ul{margin:5px 0 0;padding-left:17px}
+.htip li{margin:1px 0}
+.htip-ok{margin-top:4px!important;color:#b8f0c8}
+.htip-cond{margin-top:6px!important;color:#c9d1d8;font-size:12px}

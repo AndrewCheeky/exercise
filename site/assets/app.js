@@ -225,13 +225,51 @@
     const bandOf = x => x >= 7 ? 'go' : x >= 5 ? 'caution' : 'avoid';
     const lab = h => { const hh = h % 12 || 12; return `${hh}${h < 12 ? 'a' : 'p'}`; };
     box.replaceChildren(
-      el('div', {class: 'hstrip-head'}, el('h2', {}, 'Score by the hour'), el('p', {}, 'Outlined hours are the morning and evening windows.')),
-      el('div', {class: 'hstrip-row', role: 'list'}, ...rows.map(r => {
+      el('div', {class: 'hstrip-head'}, el('h2', {}, 'Score by the hour'), el('p', {}, 'Outlined hours are the morning and evening windows. Hover or tap an hour to see why.')),
+      el('div', {class: 'hstrip-row', role: 'list'}, ...rows.map((r, i) => {
         const h = Number(r.t.slice(0, 2));
-        return el('div', {class: `hb ${bandOf(r.s)}${inWin(h) ? ' in' : ''}`, role: 'listitem', title: `${clock(r.t)}: ${r.s}/10`, 'aria-label': `${clock(r.t)}, ${r.s} out of 10`}, el('b', {}, String(r.s)), el('small', {}, lab(h)));
-      })));
+        const why = (r.why || []).join('; ');
+        return el('div', {class: `hb ${bandOf(r.s)}${inWin(h) ? ' in' : ''}`, role: 'listitem', tabindex: '0', 'data-i': String(i),
+          'aria-label': `${clock(r.t)}, ${r.s} out of 10${why ? '. Lowered by: ' + why : '. Nothing lowered the score'}`}, el('b', {}, String(r.s)), el('small', {}, lab(h)));
+      })),
+      el('div', {class: 'htip', id: 'htip', role: 'tooltip', hidden: ''}));
     box.hidden = false;
+    const tip = $('htip'), row = box.querySelector('.hstrip-row');
+    let pinned = null;
+    const conditions = r => [
+      r.temp != null ? `${Math.round(r.temp)}°C${r.feels != null && Math.round(r.feels) !== Math.round(r.temp) ? `, feels ${Math.round(r.feels)}°` : ''}` : null,
+      r.rh != null ? `humidity ${Math.round(r.rh)}%` : null,
+      r.pop != null ? `rain ${Math.round(r.pop)}%` : null,
+      r.wind != null ? `wind ${Math.round(r.wind)} km/h${r.gust != null && r.gust - r.wind >= 10 ? ` (gusts ${Math.round(r.gust)})` : ''}` : null,
+      r.wave != null ? `waves ${r.wave.toFixed(1)} m` : null,
+    ].filter(Boolean).join(' · ');
+    const show = b => {
+      const r = rows[Number(b.dataset.i)];
+      tip.replaceChildren(
+        el('p', {class: 'htip-head'}, el('b', {}, `${clock(r.t)} · ${r.s}/10`)),
+        r.why && r.why.length ? el('ul', {}, ...r.why.map(w => el('li', {}, w))) : el('p', {class: 'htip-ok'}, 'Nothing lowered the score.'),
+        el('p', {class: 'htip-cond'}, conditions(r)));
+      tip.hidden = false;
+      // Sit above the hour, kept inside the card.
+      const bb = b.getBoundingClientRect(), cb = box.getBoundingClientRect();
+      const w = tip.offsetWidth, left = Math.max(8, Math.min(cb.width - w - 8, bb.left - cb.left + bb.width / 2 - w / 2));
+      tip.style.left = left + 'px';
+      tip.style.top = (bb.top - cb.top - tip.offsetHeight - 8) + 'px';
+      box.querySelectorAll('.hb.on').forEach(x => x.classList.remove('on')); b.classList.add('on');
+    };
+    const hide = () => { if (pinned) return show(pinned); tip.hidden = true; box.querySelectorAll('.hb.on').forEach(x => x.classList.remove('on')); };
+    row.querySelectorAll('.hb').forEach(b => {
+      b.addEventListener('mouseenter', () => show(b));
+      b.addEventListener('focus', () => show(b));
+      b.addEventListener('click', () => { pinned = pinned === b ? null : b; pinned ? show(b) : hide(); });
+    });
+    row.addEventListener('mouseleave', hide);
+    row.addEventListener('focusout', e => { if (!row.contains(e.relatedTarget)) { pinned = null; hide(); } });
+    row.addEventListener('scroll', () => { pinned = null; tip.hidden = true; }, {passive: true});
+    hstripClose = e => { if (!pinned && tip.hidden) return; if (e.type === 'click' && box.contains(e.target)) return; if (e.type === 'keydown' && e.key !== 'Escape') return; pinned = null; hide(); };
+    if (!hstripBound) { hstripBound = true; document.addEventListener('click', e => hstripClose(e)); document.addEventListener('keydown', e => hstripClose(e)); }
   }
+  let hstripClose = () => {}, hstripBound = false;
 
   // Notes for people with asthma or heart conditions (they don't change the score).
   function healthBox(h) {
