@@ -3,8 +3,8 @@
  * -------------------------------------------------
  * Add this as a new file (Lightning.gs) in the existing Wx-Exercise5day Apps Script project.
  * From 5 AM to 8 PM Jamaica time it asks Xweather for the last 5 minutes of lightning in two
- * 100 km circles that cover Jamaica: every 5 minutes while there has been lightning in the last
- * 20 minutes, every 10 minutes when it is quiet. It keeps 45 minutes of history on a ~2 km grid
+ * 100 km circles that cover Jamaica: every 5 minutes while there has been lightning within 60 km
+ * of a place on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes of history on a ~2 km grid
  * and serves it to the website at  …/exec?action=lightning
  * When lightning comes within 30 km of any Jamaican place on the website, it also asks Xweather's
  * Lightning Threats feed (at most every 10 minutes) where each storm is heading over the next hour,
@@ -25,7 +25,7 @@
  *     The /exec URL stays the same. Access must be "Anyone" for the website to read it.
  *
  * Budget (15 hours a day, 2 calls a poll):
- *   quiet hours 6 polls an hour = 12 calls; lightning hours 12 polls = 24 calls.
+ *   quiet hours 6 polls an hour = 12 calls; hours with lightning within 60 km of a place: 12 polls = 24 calls.
  *   A month with no lightning ≈ 5,600 calls; every hour of lightning adds 12.
  *   Each storm-track (Threats) request counts as 10 calls, at most 6 an hour while a storm is within 30 km.
  * It stops calling for the rest of the month if the counter would pass the cap.
@@ -39,7 +39,8 @@ const LW = {
   GRID: 0.02,                                     // ~2 km cells keep the stored data small
   START_HOUR: 5,                                  // first poll 5:00 AM
   END_HOUR: 20,                                   // last poll 7:55 PM
-  ACTIVE_MIN: 20,                                 // lightning this recent → poll every 5 minutes
+  ACTIVE_MIN: 20,                                 // lightning this recent…
+  ACTIVE_KM: 60,                                  // …and this close to a place → poll every 5 minutes
   QUIET_GAP_MIN: 9,                               // otherwise wait at least this long between polls (≈ every 10 min)
   THREAT_KM: 30,                                  // ask for storm tracks when lightning is this close to a place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
@@ -92,9 +93,14 @@ function lwPoll() {
     if (used + LW.CIRCLES.length > cap) return lwMeta_(props, 'paused', `Monthly limit reached (${used}/${cap}).`);
 
     const cells = lwLoadCells_();
-    // Quiet: no lightning in the last 20 minutes → only poll about every 10 minutes.
+    // Quiet: no lightning within 60 km of a place in the last 20 minutes → only poll about every 10 minutes.
     const nowSec = Math.floor(now.getTime() / 1000);
-    const active = Object.keys(cells).some(k => cells[k][0] >= nowSec - LW.ACTIVE_MIN * 60);
+    const places = lwPlaces_(props);
+    const active = Object.keys(cells).some(k => {
+      if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
+      const [la, lo] = k.split(',').map(Number);
+      return places.some(p => lwKm_(la, lo, p[1], p[2]) <= LW.ACTIVE_KM);
+    });
     const lastPoll = Number(props.getProperty('LW_LAST_POLL') || 0);
     const meta0 = JSON.parse(props.getProperty('LW_META') || '{}');
     if (!active && meta0.status === 'live' && now.getTime() - lastPoll < LW.QUIET_GAP_MIN * 60000) return;
