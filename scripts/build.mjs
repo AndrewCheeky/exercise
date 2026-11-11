@@ -236,7 +236,7 @@ async function islandPages() {
       .replace('<meta name="theme-color" content="#242428">', `<meta name="theme-color" content="${t.theme}">`)
       .replace(/assets\/flags\/jm\.svg/g, `assets/flags/${code.toLowerCase()}.svg`)
       .replace('<!--ISLANDS-->', `<p class="islands">Other islands: ${other(code)}</p>`);
-    if (code !== 'JM' && await exists(t.hero)) {
+    if (t.hero && t.hero !== 'assets/hero.jpg' && await exists(t.hero)) {
       html = html.replace('src="assets/hero.jpg"', `src="${t.hero}"`)
         .replace('srcset="assets/hero-900.jpg 900w, assets/hero.jpg 1800w"', (await exists(t.hero900)) ? `srcset="${t.hero900} 900w, ${t.hero} 1800w"` : `srcset="${t.hero} 1800w"`)
         .replace(/alt="A cyclist in a helmet[^"]*"/, `alt="${t.heroAlt}"`);
