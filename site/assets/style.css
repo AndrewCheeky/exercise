@@ -305,3 +305,5 @@ a{color:var(--orange)}
 /* Swim-mode hero photo (Jamaica: National Aquatic Centre): keep the pool and mountains in view */
 .hero-swim .hero-art{object-position:38% 48%}
 @media(max-width:760px){.hero-swim .hero-art{object-position:30% 100%}}
+[data-territory="TT"] .hero-swim .hero-art{object-position:40% 62%}
+@media(max-width:760px){[data-territory="TT"] .hero-swim .hero-art{object-position:40% 72%}}
