@@ -78,6 +78,18 @@
   const placeKey = () => TERR === 'JM' ? (mode === 'swim' ? 'jwa.swimPlace' : 'rr.place') : `jwa.${TERR}.${mode}Place`;
   let data = null, place = store.get(placeKey(), ''), dayIdx = 0;
   let sport = mode === 'swim' ? 'swim' : 'mixed';
+  // Swim mode can have its own hero photo per island (Jamaica: the National Aquatic Centre).
+  const SWIM_HERO = {JM: {src: 'assets/hero-swim-jm.jpg', srcset: 'assets/hero-swim-jm-900.jpg 900w, assets/hero-swim-jm.jpg 1800w',
+    alt: 'The 50-metre pool at the National Aquatic Centre in Kingston, with the Blue Mountains behind'}};
+  const heroImg = document.querySelector('.hero-art');
+  const landHero = heroImg && {src: heroImg.getAttribute('src'), srcset: heroImg.getAttribute('srcset') || '', alt: heroImg.alt};
+  function heroArt() {
+    if (!heroImg) return;
+    const h = mode === 'swim' && SWIM_HERO[TERR] || landHero;
+    if (heroImg.getAttribute('src') !== h.src) { heroImg.setAttribute('srcset', h.srcset); heroImg.setAttribute('src', h.src); heroImg.alt = h.alt; }
+    heroImg.closest('.hero').classList.toggle('hero-swim', h !== landHero);
+  }
+  heroArt();
   const inMode = l => (l.territory || 'JM') === TERR && (mode === 'swim' ? l.sport === 'swim' : l.sport !== 'swim');
   const places = () => data ? data.locations.filter(inMode) : [];
   const loc = () => { const list = places(); return list.find(l => l.key === place) || list[0]; };
@@ -356,6 +368,7 @@
     sel.value = place;
     document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     $('explain-1').textContent = EXPLAIN[mode][0]; $('explain-2').textContent = EXPLAIN[mode][1];
+    heroArt();
   }
   function setMode(m) {
     if (m === mode) return;
