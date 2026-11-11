@@ -76,7 +76,7 @@
   const TERR = document.documentElement.dataset.territory || 'JM';
   let mode = store.get('jwa.mode', 'land') === 'swim' ? 'swim' : 'land';
   const placeKey = () => TERR === 'JM' ? (mode === 'swim' ? 'jwa.swimPlace' : 'rr.place') : `jwa.${TERR}.${mode}Place`;
-  let data = null, place = store.get(placeKey(), ''), dayIdx = 0;
+  let data = null, place = store.get(placeKey(), ''), dayIdx = null, amOpen = false;   // dayIdx null = pick automatically
   let sport = mode === 'swim' ? 'swim' : 'mixed';
   // Swim mode can have its own hero photo per island (Jamaica: the National Aquatic Centre).
   const SWIM_HERO = {JM: {src: 'assets/hero-swim-jm.jpg', srcset: 'assets/hero-swim-jm-900.jpg 900w, assets/hero-swim-jm.jpg 1800w',
@@ -182,7 +182,7 @@
         el('b', {}, d.date === today ? 'Today' : dayName(d.date, {weekday: 'short'})),
         el('small', {}, dayName(d.date, {day: 'numeric', month: 'short'})),
         el('span', {class: 'dots'}, dot('am'), dot('pm')));
-      b.addEventListener('click', () => { dayIdx = i; render(); });
+      b.addEventListener('click', () => { dayIdx = i; amOpen = false; render(); });
       return b;
     }));
   }
@@ -377,13 +377,40 @@
     document.title = `${t.brand} We Outside | Your best time to run, walk, ride or swim`;
   }
 
+  // Island-local clock: from noon today's morning window has passed, and from 6:30 PM so has the evening one.
+  const NOON = 12, EVENING_OVER = 18.5;
+  function autoDay(L) {
+    const {date, hour} = jaNow(), t = L.days.findIndex(d => d.date === date);
+    if (t < 0) return 0;
+    return hour >= EVENING_OVER && t + 1 < L.days.length ? t + 1 : t;
+  }
+  function morningMini(w, day) {
+    const s = w && w.scores && w.scores[mode === 'swim' ? 'swim' : sport], m = w && w.metrics, WN = W();
+    const b = el('button', {type: 'button', class: 'win-mini ' + (s ? s.band : ''), 'aria-expanded': 'false', 'aria-label': `This morning${s ? `, ${s.index} out of 10` : ''}. Show the morning details`},
+      icon(WN.am.icon), el('span', {class: 'mini-t'}, el('b', {}, 'This morning'), ` · ${WN.am.times}${m && m.condition ? ' · ' + m.condition : ''}`),
+      s ? el('span', {class: 'mini-score'}, String(s.index)) : null, el('span', {class: 'mini-show'}, 'Show'));
+    b.addEventListener('click', () => { amOpen = true; render(); });
+    return b;
+  }
   function render() {
     const L = loc(); if (!L) return;
-    if (dayIdx >= L.days.length) dayIdx = 0;
+    if (dayIdx == null || dayIdx >= L.days.length) dayIdx = autoDay(L);
     brandFor(L); hero(); renderDays();
     document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon}}));
-    const day = L.days[dayIdx];
-    $('windows').replaceChildren(card('am', day.windows.am, day), card('pm', day.windows.pm, day));
+    const day = L.days[dayIdx], now = jaNow();
+    const pastMorning = day.date === now.date && now.hour >= NOON;
+    const wins = $('windows');
+    wins.classList.toggle('am-folded', pastMorning && !amOpen);
+    if (pastMorning && !amOpen) wins.replaceChildren(morningMini(day.windows.am, day), card('pm', day.windows.pm, day));
+    else {
+      const am = card('am', day.windows.am, day);
+      if (pastMorning) {   // opened by the visitor: offer to fold it again
+        const hide = el('button', {type: 'button', class: 'mini-hide'}, 'Hide');
+        hide.addEventListener('click', () => { amOpen = false; render(); });
+        am.querySelector('.win-top')?.append(hide);
+      }
+      wins.replaceChildren(am, card('pm', day.windows.pm, day));
+    }
     hourStrip(day);
     renderHourly(day);
   }
@@ -415,7 +442,7 @@
   function setMode(m) {
     if (m === mode) return;
     mode = m; sport = mode === 'swim' ? 'swim' : 'mixed'; store.set('jwa.mode', mode);
-    place = store.get(placeKey(), ''); dayIdx = 0; fillPlaces(); render();
+    place = store.get(placeKey(), ''); dayIdx = null; amOpen = false; fillPlaces(); render();
   }
 
   async function load() {
@@ -429,7 +456,14 @@
     const sel = $('place');
     if (!data.locations.some(l => l.sport === 'swim' && (l.territory || 'JM') === TERR)) { $('mode').hidden = true; mode = 'land'; sport = 'mixed'; }
     fillPlaces();
-    sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = 0; render(); });
+    sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = null; amOpen = false; render(); });
+    // Coming back to the page later (e.g. after noon or 6:30 PM): re-pick the day and fold the morning if it has passed.
+    let lastDay = jaNow().date + (jaNow().hour >= EVENING_OVER ? 'e' : jaNow().hour >= NOON ? 'n' : 'm');
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      const n = jaNow(), key = n.date + (n.hour >= EVENING_OVER ? 'e' : n.hour >= NOON ? 'n' : 'm');
+      if (key !== lastDay) { lastDay = key; dayIdx = null; amOpen = false; render(); }
+    });
     document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
     const gen = new Date(data.generatedAt);
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
