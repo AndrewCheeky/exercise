@@ -301,3 +301,7 @@ a{color:var(--orange)}
 .qpop .pill{white-space:nowrap;min-width:52px;text-align:center;flex:0 0 auto}
 .place{border-radius:6px;padding:2px 8px 2px 12px}
 @media(max-width:760px){.newhere{grid-template-columns:auto 1fr;padding:12px 14px}.newhere button{grid-column:1/-1;width:100%}.qpop{width:min(270px,80vw)}}
+
+/* Swim-mode hero photo (Jamaica: National Aquatic Centre): keep the pool and mountains in view */
+.hero-swim .hero-art{object-position:38% 48%}
+@media(max-width:760px){.hero-swim .hero-art{object-position:30% 100%}}
