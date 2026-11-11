@@ -4,6 +4,7 @@
   {"name": "Puerto Seco", "area": "St Ann", "lat": 18.468, "lon": -77.405, "sport": "swim", "type": "sea", "facing": 0, "note": "approximate", "territory": "JM"},
   {"name": "Doctor's Cave", "area": "St James", "lat": 18.487, "lon": -77.933, "sport": "swim", "type": "sea", "facing": 280, "note": "approximate", "territory": "JM"},
   {"name": "Negril Seven Mile", "area": "Westmoreland", "lat": 18.32, "lon": -78.345, "sport": "swim", "type": "sea", "facing": 265, "note": "approximate", "territory": "JM"},
+  {"name": "Billy's Bay", "area": "Treasure Beach, St Elizabeth", "lat": 17.882, "lon": -77.781, "sport": "swim", "type": "sea", "facing": 215, "note": "Treasure Beach, approximate", "territory": "JM"},
   {"name": "Shaw Park Beach", "area": "St Ann", "lat": 18.415, "lon": -77.092, "sport": "swim", "type": "sea", "facing": 10, "note": "Ocho Rios, approximate", "territory": "JM"},
   {"name": "National Aquatic Centre", "area": "St Andrew", "lat": 18.0015, "lon": -76.776, "sport": "swim", "type": "pool", "facing": null, "note": "pool", "territory": "JM"},
   {"name": "YMCA Pool", "area": "St Andrew", "lat": 18.011, "lon": -76.783, "sport": "swim", "type": "pool", "facing": null, "note": "Hope Road, approximate", "territory": "JM"},
