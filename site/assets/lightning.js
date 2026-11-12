@@ -12,14 +12,19 @@
   const BOLT = P('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'), GPS = P('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>');
   const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
   const STALE_MIN = 15;
-  // Areas the lightning feed checks (the feed can send its own list). A place must sit well inside one.
-  const COVER = [[18.15, -77.75], [18.10, -76.80]], COVER_KM = 100, EDGE_KM = 20;
-  const covered = ref => (feed && Array.isArray(feed.circles) ? feed.circles : COVER).some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM);
+  // Each island page reads its own region from the feed (Jamaica, Trinidad). A place must sit well inside a circle.
+  const TERR = document.documentElement.dataset.territory || 'JM';
+  const REGION_NAME = {JM: 'Jamaica', TT: 'Trinidad'};
+  const COVER = {JM: [[18.15, -77.75], [18.10, -76.80]]}, COVER_KM = 100, EDGE_KM = 20;
+  const region = () => feed && feed.regions ? feed.regions[TERR] || null : (TERR === 'JM' && feed ? feed : null);
+  const covered = ref => { const r = region(), circles = r && Array.isArray(r.circles) ? r.circles : COVER[TERR] || [];
+    return circles.some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM); };
+  const watchedNames = () => feed && feed.regions ? Object.values(feed.regions).map(r => r.name).join(' and ') : 'Jamaica';
 
   let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '', helpOpen = false;
   const HELP = `<div class="lw-help" id="lw-help">
     <p class="lw-help-h">⚡ Lightning Watch: how it works</p>
-    <p>From 5 AM to 8 PM, we check for real lightning strikes around Jamaica and show how close they are to your chosen place, or to you with "Use my location". Your location stays on your phone.</p>
+    <p>From 5 AM to 8 PM, we check for real lightning strikes around ${REGION_NAME[TERR] || 'Jamaica and Trinidad'} and show how close they are to your chosen place, or to you with "Use my location". Your location stays on your phone.</p>
     <p class="lw-help-h">What it tells you</p>
     <ul>
       <li>🟢 <b>Under 40 km:</b> no lightning. All clear.</li>
@@ -98,12 +103,13 @@
     const ref = useGps && gps ? {lat: gps.lat, lon: gps.lon, name: 'you'} : place;
     if (!ref) return;
     let s;
-    const updated = feed && feed.updated ? new Date(feed.updated).getTime() : 0;
-    const fresh = feed && feed.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
+    const R = region();
+    const updated = R && R.updated ? new Date(R.updated).getTime() : 0;
+    const fresh = R && R.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
-    else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: 'Live lightning is checked around Jamaica only for now. Watch the sky and listen for thunder.'};
+    else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: `Live lightning is checked around ${watchedNames()} only for now. Watch the sky and listen for thunder.`};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
-      text: feed.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : feed.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : feed.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
+      text: !R || R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : R.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : R.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
     const tr = fresh && covered(ref) ? track(ref) : null;
