@@ -2,11 +2,11 @@
  * Jamaica We Active! – Lightning watch (Xweather)
  * -------------------------------------------------
  * Add this as a new file (Lightning.gs) in the existing Wx-Exercise5day Apps Script project.
- * From 5 AM to 8 PM Jamaica time it asks Xweather for the last 5 minutes of lightning in two
- * 100 km circles that cover Jamaica: every 5 minutes while there has been lightning within 60 km
- * of a place on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes of history on a ~2 km grid
- * and serves it to the website at  …/exec?action=lightning
- * When lightning comes within 30 km of any Jamaican place on the website, it also asks Xweather's
+ * For Jamaica (two 100 km circles) and Trinidad (one), from 5 AM to 8 PM local time, it asks Xweather for
+ * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 60 km of one of
+ * that island's places on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes
+ * of history on a ~2 km grid and serves it to the website at  …/exec?action=lightning
+ * When lightning comes within 30 km of any place on the website, it also asks Xweather's
  * Lightning Threats feed (at most every 10 minutes) where each storm is heading over the next hour,
  * so the website can say "likely to reach Kingston in about 30 minutes".
  * The website works out the distance on the visitor's phone, so their GPS never leaves it.
@@ -24,16 +24,24 @@
  *  6. Deploy → Manage deployments → edit the existing web app → Version: New version → Deploy.
  *     The /exec URL stays the same. Access must be "Anyone" for the website to read it.
  *
- * Budget (15 hours a day, 2 calls a poll):
- *   quiet hours 6 polls an hour = 12 calls; hours with lightning within 60 km of a place: 12 polls = 24 calls.
- *   A month with no lightning ≈ 5,600 calls; every hour of lightning adds 12.
+ * Regions: Jamaica (2 circles) and Trinidad (1 circle), each checked 5 AM–8 PM in its own local time,
+ * each with its own quiet/active pace.
+ * Budget (15 hours a day per region, 1 call per circle per poll):
+ *   Jamaica: quiet 12 calls an hour, 24 with lightning within 60 km of a place.
+ *   Trinidad: quiet 6 calls an hour, 12 with lightning.
+ *   A month with no lightning ≈ 5,600 (Jamaica) + 2,800 (Trinidad) calls.
  *   Each storm-track (Threats) request counts as 10 calls, at most 6 an hour while a storm is within 30 km.
  * It stops calling for the rest of the month if the counter would pass the cap.
  * All keys here start with LW_ so nothing clashes with the email script's cache or properties.
  */
 
 const LW = {
-  CIRCLES: [[18.15, -77.75], [18.10, -76.80]],   // west + east Jamaica, 100 km each (standard plan maximum)
+  // Each region: its own clock and 100 km circles (standard plan maximum). Trinidad's circle covers the whole
+  // island (not Tobago, which has no places on the site yet).
+  REGIONS: {
+    JM: {name: 'Jamaica', tz: 'America/Jamaica', circles: [[18.15, -77.75], [18.10, -76.80]]},
+    TT: {name: 'Trinidad', tz: 'America/Port_of_Spain', circles: [[10.45, -61.30]]},
+  },
   RADIUS_KM: 100,
   KEEP_MIN: 45,                                   // history kept for the 30-minute rule
   GRID: 0.02,                                     // ~2 km cells keep the stored data small
@@ -53,8 +61,9 @@ const LW = {
     ['Negril', 18.268, -78.348], ['Mandeville', 18.041, -77.507], ['Port Antonio', 18.177, -76.452],
     ['Morant Bay', 17.882, -76.409], ['Spanish Town', 17.991, -76.957], ['Portmore', 17.95, -76.883]],
   CAP_DEFAULT: 14000,
-  TZ: 'America/Jamaica',
+  TZ: 'America/Jamaica',                          // the monthly counter rolls over on Jamaica's calendar
 };
+const lwRegionMeta_ = (props, r) => JSON.parse(props.getProperty('LW_META_' + r) || (r === 'JM' ? props.getProperty('LW_META') || '{}' : '{}'));
 
 /** Web app route: GET …/exec?action=lightning returns the current lightning picture. */
 function lightningFeed_() {
@@ -62,7 +71,13 @@ function lightningFeed_() {
   const meta = JSON.parse(props.getProperty('LW_META') || '{}');
   const cells = lwLoadCells_();
   const nowSec = Math.floor(Date.now() / 1000);
+  const regions = {};
+  Object.keys(LW.REGIONS).forEach(r => {
+    const m = lwRegionMeta_(props, r);
+    regions[r] = {name: LW.REGIONS[r].name, status: m.status || 'unknown', updated: m.updated || null, checked: m.checked || null, message: m.message || '', circles: LW.REGIONS[r].circles};
+  });
   const out = {
+    // Top level is Jamaica (older pages read it); each region's own status is under "regions".
     status: meta.status || 'unknown',             // live | sleeping | paused | error | unknown
     updated: meta.updated || null,                // last successful poll (ISO)
     checked: meta.checked || null,                // last poll attempt (ISO)
@@ -74,60 +89,68 @@ function lightningFeed_() {
     cells: Object.keys(cells).map(k => { const [la, lo] = k.split(',').map(Number); const c = cells[k]; return [la, lo, c[0], c[1], c[2]]; }),
     // Storm tracks for the next hour: [{dirTo, dirToDEG, kph, reliability, severe, periods: [[start s, end s, [[lat, lon], …]], …]}]
     threats: lwLoadThreats_(),
+    regions, radiusKm: LW.RADIUS_KM,
     source: 'Xweather',
   };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Time trigger: every 5 minutes. */
+/** Time trigger: every 5 minutes. Each region runs on its own clock and pace. */
 function lwPoll() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return;
   try {
     const props = PropertiesService.getScriptProperties();
-    const now = new Date();
-    const hour = Number(Utilities.formatDate(now, LW.TZ, 'H'));
+    const now = new Date(), nowSec = Math.floor(now.getTime() / 1000);
     lwRollMonth_(props, now);
-    if (hour < LW.START_HOUR || hour >= LW.END_HOUR) return lwMeta_(props, 'sleeping', 'Lightning watch runs 5 AM–8 PM.');
-    const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
-    if (used + LW.CIRCLES.length > cap) return lwMeta_(props, 'paused', `Monthly limit reached (${used}/${cap}).`);
-
     const cells = lwLoadCells_();
-    // Quiet: no lightning within 60 km of a place in the last 20 minutes → only poll about every 10 minutes.
-    const nowSec = Math.floor(now.getTime() / 1000);
     const places = lwPlaces_(props);
-    const active = Object.keys(cells).some(k => {
-      if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
-      const [la, lo] = k.split(',').map(Number);
-      return places.some(p => lwKm_(la, lo, p[1], p[2]) <= LW.ACTIVE_KM);
-    });
-    const lastPoll = Number(props.getProperty('LW_LAST_POLL') || 0);
-    const meta0 = JSON.parse(props.getProperty('LW_META') || '{}');
-    if (!active && meta0.status === 'live' && now.getTime() - lastPoll < LW.QUIET_GAP_MIN * 60000) return;
-    props.setProperty('LW_LAST_POLL', String(now.getTime()));
     const cache = CacheService.getScriptCache();
     const seenBefore = new Set(JSON.parse(cache.get('LW_SEEN') || '[]'));
     const seenNow = [];
-    let added = 0;
-    for (const [lat, lon] of LW.CIRCLES) {
-      for (const s of lwFetch_(props, lat, lon)) {
-        const id = s.id, la = s.loc && s.loc.lat, lo = s.loc && s.loc.long, ts = s.ob && s.ob.timestamp;
-        if (la == null || lo == null || !ts) continue;
-        if (id) { if (seenBefore.has(id) || seenNow.indexOf(id) >= 0) continue; seenNow.push(id); }
-        const key = (Math.round(la / LW.GRID) * LW.GRID).toFixed(2) + ',' + (Math.round(lo / LW.GRID) * LW.GRID).toFixed(2);
-        const cg = s.ob.pulse && s.ob.pulse.type === 'cg' ? 1 : 0;
-        const c = cells[key] || [0, 0, 0];
-        cells[key] = [Math.max(c[0], ts), c[1] + 1, c[2] || cg];
-        added++;
+    let polled = false;
+    for (const r of Object.keys(LW.REGIONS)) {
+      const R = LW.REGIONS[r];
+      try {
+        const hour = Number(Utilities.formatDate(now, R.tz, 'H'));
+        if (hour < LW.START_HOUR || hour >= LW.END_HOUR) { lwMeta_(props, r, 'sleeping', 'Lightning watch runs 5 AM–8 PM.'); continue; }
+        const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
+        if (used + R.circles.length > cap) { lwMeta_(props, r, 'paused', `Monthly limit reached (${used}/${cap}).`); continue; }
+        // Quiet: no lightning within 60 km of this region's places in the last 20 minutes → poll about every 10 minutes.
+        const mine = places.filter(p => (p[3] || 'JM') === r);
+        const active = Object.keys(cells).some(k => {
+          if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
+          const [la, lo] = k.split(',').map(Number);
+          return mine.some(p => lwKm_(la, lo, p[1], p[2]) <= LW.ACTIVE_KM);
+        });
+        const lastPoll = Number(props.getProperty('LW_LAST_POLL_' + r) || 0);
+        if (!active && lwRegionMeta_(props, r).status === 'live' && now.getTime() - lastPoll < LW.QUIET_GAP_MIN * 60000) continue;
+        props.setProperty('LW_LAST_POLL_' + r, String(now.getTime()));
+        let added = 0;
+        for (const [lat, lon] of R.circles) {
+          for (const s of lwFetch_(props, lat, lon)) {
+            const id = s.id, la = s.loc && s.loc.lat, lo = s.loc && s.loc.long, ts = s.ob && s.ob.timestamp;
+            if (la == null || lo == null || !ts) continue;
+            if (id) { if (seenBefore.has(id) || seenNow.indexOf(id) >= 0) continue; seenNow.push(id); }
+            const key = (Math.round(la / LW.GRID) * LW.GRID).toFixed(2) + ',' + (Math.round(lo / LW.GRID) * LW.GRID).toFixed(2);
+            const cg = s.ob.pulse && s.ob.pulse.type === 'cg' ? 1 : 0;
+            const c = cells[key] || [0, 0, 0];
+            cells[key] = [Math.max(c[0], ts), c[1] + 1, c[2] || cg];
+            added++;
+          }
+        }
+        polled = true;
+        lwMeta_(props, r, 'live', `${added} new strikes`, true);
+      } catch (err) {
+        lwMeta_(props, r, 'error', String(err && err.message || err).slice(0, 200));
+        console.error(r + ': ' + err);
       }
     }
-    cache.put('LW_SEEN', JSON.stringify(seenNow.slice(-3000)), 900);
-    lwSaveCells_(cells);
-    lwMeta_(props, 'live', `${added} new strikes`, true);
-    try { lwMaybeThreats_(props, cells, now); } catch (e) { console.warn('[LW threats] ' + e); }
-  } catch (err) {
-    lwMeta_(PropertiesService.getScriptProperties(), 'error', String(err && err.message || err).slice(0, 200));
-    console.error(err);
+    if (polled) {
+      cache.put('LW_SEEN', JSON.stringify(seenNow.concat([...seenBefore]).slice(0, 3000)), 900);
+      lwSaveCells_(cells);
+      try { lwMaybeThreats_(props, cells, now); } catch (e) { console.warn('[LW threats] ' + e); }
+    }
   } finally {
     lock.releaseLock();
   }
@@ -157,7 +180,7 @@ function lwMaybeThreats_(props, cells, now) {
   const nowSec = Math.floor(now.getTime() / 1000);
   if (Number(props.getProperty('LW_THREAT_OFF_UNTIL') || 0) > now.getTime()) return;
   if (now.getTime() - Number(props.getProperty('LW_THREAT_AT') || 0) < LW.THREAT_GAP_MIN * 60000) return;
-  const places = lwPlaces_(props);
+  const places = lwPlaces_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
   let best = null;                                // the place with the closest recent strike
   Object.keys(cells).forEach(k => {
     if (cells[k][0] < nowSec - LW.THREAT_RECENT_MIN * 60) return;
@@ -224,18 +247,18 @@ function lwLoadThreats_() {
   return t;
 }
 
-/** The website's Jamaican places (run & ride and swim), refreshed once a day. */
+/** The website's places in the watched regions (run & ride and swim) as [name, lat, lon, region], refreshed once a day. */
 function lwPlaces_(props) {
-  const cached = JSON.parse(props.getProperty('LW_PLACES') || 'null');
+  const cached = JSON.parse(props.getProperty('LW_PLACES2') || 'null');
   if (cached && Date.now() - cached.at < 24 * 3600000 && cached.list.length) return cached.list;
   try {
     const res = UrlFetchApp.fetch(LW.PLACES_URL, {muteHttpExceptions: true});
     if (res.getResponseCode() === 200) {
-      const list = JSON.parse(res.getContentText()).places.filter(p => p.t === 'JM').map(p => [p.name, p.lat, p.lon]);
-      if (list.length) { props.setProperty('LW_PLACES', JSON.stringify({at: Date.now(), list})); return list; }
+      const list = JSON.parse(res.getContentText()).places.filter(p => LW.REGIONS[p.t]).map(p => [p.name, p.lat, p.lon, p.t]);
+      if (list.length) { props.setProperty('LW_PLACES2', JSON.stringify({at: Date.now(), list})); return list; }
     }
   } catch (e) { console.warn('[LW places] ' + e); }
-  return cached && cached.list.length ? cached.list : LW.FALLBACK_PLACES;
+  return cached && cached.list.length ? cached.list : LW.FALLBACK_PLACES.map(p => p.concat('JM'));
 }
 
 function lwKm_(a, b, c, d) {
@@ -257,12 +280,13 @@ function lwSaveCells_(cells) {
   CacheService.getScriptCache().put('LW_CELLS', JSON.stringify(cells), 6 * 3600);
 }
 
-function lwMeta_(props, status, message, ok) {
-  const meta = JSON.parse(props.getProperty('LW_META') || '{}');
+function lwMeta_(props, region, status, message, ok) {
+  const meta = lwRegionMeta_(props, region);
   const iso = new Date().toISOString();
   meta.status = status; meta.message = message; meta.checked = iso;
   if (ok) meta.updated = iso;
-  props.setProperty('LW_META', JSON.stringify(meta));
+  props.setProperty('LW_META_' + region, JSON.stringify(meta));
+  if (region === 'JM') props.setProperty('LW_META', JSON.stringify(meta));   // older pages read the top-level status
 }
 
 function lwCap_(props) { return Number(props.getProperty('LIGHTNING_MONTHLY_CAP') || LW.CAP_DEFAULT); }
@@ -272,13 +296,18 @@ function lwRollMonth_(props, now) {
   if (props.getProperty('LW_MONTH') !== month) props.setProperties({LW_MONTH: month, LW_USED: '0'});
 }
 
-/** Run by hand: one call for the west circle, logs what comes back (uses 1 call). */
+/** Run by hand: one call for the first circle of each region, logs what comes back (uses 1 call per region). */
 function testLightning() {
   const props = PropertiesService.getScriptProperties();
   lwRollMonth_(props, new Date());
-  const list = lwFetch_(props, LW.CIRCLES[0][0], LW.CIRCLES[0][1]);
-  console.log('Strikes in the last 5 minutes within 100 km of west Jamaica: ' + list.length);
-  if (list.length) console.log(JSON.stringify(list[0]));
+  Object.keys(LW.REGIONS).forEach(r => {
+    const [lat, lon] = LW.REGIONS[r].circles[0];
+    const list = lwFetch_(props, lat, lon);
+    console.log(`Strikes in the last 5 minutes within 100 km of ${LW.REGIONS[r].name} (${lat}, ${lon}): ${list.length}`);
+    if (list.length) console.log(JSON.stringify(list[0]));
+  });
+  const pl = lwPlaces_(props);
+  Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name} places watched: ${pl.filter(p => (p[3] || 'JM') === r).length}`));
   console.log('Calls used this month: ' + props.getProperty('LW_USED') + ' / ' + lwCap_(props));
 }
 
@@ -301,10 +330,10 @@ function testLightningThreats() {
 function lightningStatus() {
   const props = PropertiesService.getScriptProperties();
   console.log('Used ' + (props.getProperty('LW_USED') || 0) + ' / ' + lwCap_(props) + ' in ' + props.getProperty('LW_MONTH'));
-  console.log(props.getProperty('LW_META'));
+  Object.keys(LW.REGIONS).forEach(r => console.log(LW.REGIONS[r].name + ': ' + JSON.stringify(lwRegionMeta_(props, r))));
 }
 
-/** Run once: runs every 5 minutes (outside 5 AM–8 PM, and on quiet in-between runs, it returns without calling Xweather). */
+/** Run once: runs every 5 minutes (outside each region's 5 AM–8 PM, and on quiet in-between runs, it skips that region). */
 function installLightningTrigger() {
   ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'lwPoll').forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('lwPoll').timeBased().everyMinutes(5).create();
