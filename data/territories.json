@@ -42,5 +42,17 @@
     "hero900": "assets/hero-tt-900.jpg",
     "heroAlt": "Outdoor exercise in Trinidad",
     "theme": "#1a1a1a"
+  },
+  "GD": {
+    "name": "Grenada",
+    "brand": "Grenada",
+    "path": "grenada",
+    "defaultPlace": "st-george-s",
+    "tz": "America/Grenada",
+    "starter": "data/grenada.json",
+    "hero": "assets/hero-gd.jpg",
+    "hero900": "assets/hero-gd-900.jpg",
+    "heroAlt": "Outdoor exercise in Grenada",
+    "theme": "#004d3a"
   }
 }

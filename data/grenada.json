@@ -1,0 +1,17 @@
+[
+  {"name": "St George's", "area": "Carenage and Lagoon Road", "lat": 12.052, "lon": -61.752, "sport": "both", "territory": "GD"},
+  {"name": "Grand Anse (triathlon)", "area": "St George", "lat": 12.030, "lon": -61.760, "sport": "both", "territory": "GD", "note": "Triathlon start, transition and run area"},
+  {"name": "True Blue and Airport Road", "area": "St George", "lat": 12.003, "lon": -61.772, "sport": "both", "territory": "GD", "note": "Flat loop; triathlon bike leg to the True Blue roundabout"},
+  {"name": "Lance aux Épines", "area": "St George", "lat": 11.998, "lon": -61.757, "sport": "both", "territory": "GD"},
+  {"name": "Queen's Park and National Stadium", "area": "St George", "lat": 12.062, "lon": -61.748, "sport": "both", "territory": "GD", "note": "Site of the new national aquatic centre (under construction)"},
+  {"name": "Grand Etang (climb)", "area": "St Andrew", "lat": 12.095, "lon": -61.697, "sport": "both", "territory": "GD"},
+  {"name": "Westerhall and St David's", "area": "St David", "lat": 12.016, "lon": -61.693, "sport": "both", "territory": "GD"},
+  {"name": "Grenville", "area": "St Andrew", "lat": 12.122, "lon": -61.625, "sport": "both", "territory": "GD"},
+  {"name": "Gouyave", "area": "St John", "lat": 12.167, "lon": -61.730, "sport": "both", "territory": "GD"},
+  {"name": "Sauteurs", "area": "St Patrick", "lat": 12.218, "lon": -61.639, "sport": "both", "territory": "GD"},
+  {"name": "Grand Anse Beach", "area": "St George · triathlon swim", "lat": 12.031, "lon": -61.763, "sport": "swim", "type": "sea", "facing": 290, "territory": "GD", "note": "approximate"},
+  {"name": "Morne Rouge (BBC) Beach", "area": "St George", "lat": 12.022, "lon": -61.773, "sport": "swim", "type": "sea", "facing": 280, "territory": "GD", "note": "approximate"},
+  {"name": "Magazine Beach", "area": "St George", "lat": 11.999, "lon": -61.784, "sport": "swim", "type": "sea", "facing": 250, "territory": "GD", "note": "approximate"},
+  {"name": "La Sagesse Beach", "area": "St David", "lat": 12.024, "lon": -61.666, "sport": "swim", "type": "sea", "facing": 150, "territory": "GD", "note": "approximate"},
+  {"name": "Bathway Beach", "area": "St Patrick", "lat": 12.207, "lon": -61.612, "sport": "swim", "type": "sea", "facing": 40, "territory": "GD", "note": "approximate; reef-sheltered pool"}
+]
