@@ -95,7 +95,8 @@
   }
   heroArt();
   const inMode = l => (l.territory || 'JM') === TERR && (mode === 'swim' ? l.sport === 'swim' : l.sport !== 'swim');
-  const places = () => data ? data.locations.filter(inMode) : [];
+  // Run & ride places are listed A–Z; swim keeps its own order (sea spots, then pools).
+  const places = () => { if (!data) return []; const l = data.locations.filter(inMode); return mode === 'swim' ? l : l.slice().sort((a, b) => a.name.localeCompare(b.name, 'en', {sensitivity: 'base'})); };
   const loc = () => { const list = places(); return list.find(l => l.key === place) || list[0]; };
   const SWIM_WIN = {am: {label: 'Morning', times: '5:30–8:00 AM', start: 5.5, end: 8, icon: 'sunrise'}, pm: {label: 'Evening', times: '4:30–6:30 PM', start: 16.5, end: 18.5, icon: 'sunset'}};
   const W = () => mode === 'swim' ? SWIM_WIN : WIN;
