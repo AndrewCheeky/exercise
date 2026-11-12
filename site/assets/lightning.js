@@ -16,7 +16,28 @@
   const COVER = [[18.15, -77.75], [18.10, -76.80]], COVER_KM = 100, EDGE_KM = 20;
   const covered = ref => (feed && Array.isArray(feed.circles) ? feed.circles : COVER).some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM);
 
-  let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '';
+  let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '', helpOpen = false;
+  const HELP = `<div class="lw-help" id="lw-help">
+    <p class="lw-help-h">⚡ Lightning Watch: how it works</p>
+    <p>From 5 AM to 8 PM, we check for real lightning strikes around Jamaica and show how close they are to your chosen place, or to you with "Use my location". Your location stays on your phone.</p>
+    <p class="lw-help-h">What it tells you</p>
+    <ul>
+      <li>🟢 <b>Under 40 km:</b> no lightning. All clear.</li>
+      <li>🟡 <b>Within 40 km:</b> storms around. Watch the sky.</li>
+      <li>🟠 <b>Within 20 km:</b> head back now.</li>
+      <li>🔴 <b>Within 10 km:</b> get indoors now. It shows when it's safe to go back out.</li>
+    </ul>
+    <p>It can also warn you when a storm is heading your way: <i>"Likely to reach you in about 30 minutes."</i></p>
+    <p class="lw-help-h">Why it matters</p>
+    <p>Lightning can strike more than 10 km from a storm, often before the rain arrives. A few minutes' warning is enough to finish early or get out of the water.</p>
+    <p class="lw-help-end"><b>Hear thunder? Go indoors.</b> <button type="button" class="lw-help-ok">Got it</button></p>
+  </div>`;
+  const qBtn = () => `<button type="button" class="lw-q" aria-label="How Lightning Watch works" aria-expanded="${helpOpen}" aria-controls="lw-help">?</button>`;
+  function wire() {
+    const g = box.querySelector('.lw-gps'); if (g) g.addEventListener('click', toggleGps);
+    const q = box.querySelector('.lw-q'); if (q) q.addEventListener('click', () => { helpOpen = !helpOpen; render(); if (helpOpen) box.querySelector('.lw-help-ok')?.focus({preventScroll: true}); });
+    const ok = box.querySelector('.lw-help-ok'); if (ok) ok.addEventListener('click', () => { helpOpen = false; render(); box.querySelector('.lw-q')?.focus({preventScroll: true}); });
+  }
 
   const km = (a, b, c, d) => { const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
   const bearing = (a, b, c, d) => { const r = Math.PI / 180, y = Math.sin((d - b) * r) * Math.cos(c * r), x = Math.cos(a * r) * Math.sin(c * r) - Math.sin(a * r) * Math.cos(c * r) * Math.cos((d - b) * r); return (Math.atan2(y, x) / r + 360) % 360; };
@@ -96,8 +117,8 @@
     if (s.level === 'clear' || s.level === 'off') {
       const sub = s.level === 'clear' ? `${where}${fresh ? ` · updated ${clock(updated)}` : ''}` : (s.text || where);
       box.className = 'lightning lw-slim lw-' + s.level;
-      box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${sub}</p></div>${s.level === 'clear' ? gpsBtn : ''}`;
-      const b = box.querySelector('.lw-gps'); if (b) b.addEventListener('click', toggleGps);
+      box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${sub}</p></div><div class="lw-actions">${s.level === 'clear' ? gpsBtn : ''}${qBtn()}</div>${helpOpen ? HELP : ''}`;
+      wire();
       box.hidden = false;
       return;
     }
@@ -110,8 +131,8 @@
         ${s.text ? `<p>${esc(s.text)}</p>` : ''}
         <p class="lw-note">${gpsMsg ? esc(gpsMsg) + ' ' : ''}No detector catches every strike. If you hear thunder, you're close enough to be struck.</p>
       </div>
-      ${gpsBtn}`;
-    box.querySelector('.lw-gps').addEventListener('click', toggleGps);
+      <div class="lw-actions">${gpsBtn}${qBtn()}</div>${helpOpen ? HELP : ''}`;
+    wire();
     box.hidden = false;
   }
 

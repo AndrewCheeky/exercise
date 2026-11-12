@@ -338,3 +338,22 @@ a{color:var(--orange)}
 .win-mini:hover .mini-show{text-decoration:underline}
 .mini-hide{margin-left:auto;align-self:flex-start;border:0;background:none;color:#e85d2a;font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:2px 4px}
 .mini-hide:hover{text-decoration:underline}
+/* Lightning Watch "?" help, opened inside the card (like the New here? tip) */
+.lw-actions{display:flex;align-items:center;gap:8px;justify-self:end}
+.lw-q{width:32px;height:32px;flex:none;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:grid;place-items:center;padding:0}
+.lw-q[aria-expanded="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.lw-q:focus-visible{outline:3px solid var(--orange-2);outline-offset:2px}
+.lw-help{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
+.lightning .lw-help p{margin:6px 0 0;font-size:14px;color:var(--ink-2)}
+.lightning .lw-help .lw-help-h{margin-top:12px;font-weight:800;color:var(--ink);font-size:14.5px}
+.lightning .lw-help .lw-help-h:first-child{margin-top:0}
+.lw-help ul{list-style:none;margin:6px 0 0;padding:0;font-size:14px;color:var(--ink-2)}
+.lw-help li{margin:4px 0}
+.lightning .lw-help .lw-help-end{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;color:var(--ink)}
+.lw-help-ok{border:0;background:var(--ink);color:#fff;font:inherit;font-weight:700;border-radius:999px;padding:0 18px;min-height:40px;cursor:pointer}
+.lw-help-ok:focus-visible{outline:3px solid var(--orange-2);outline-offset:2px}
+@media(max-width:760px){
+  .lightning:not(.lw-slim) .lw-actions{grid-column:1/-1;justify-self:stretch;justify-content:space-between}
+  .lightning.lw-slim .lw-actions{grid-column:auto}
+  .lw-help-ok{width:100%}
+}
