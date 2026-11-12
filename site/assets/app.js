@@ -206,15 +206,22 @@
   let FLAG = new Set();
   const stat = (ic, label, value, sub, key) => el('div', {class: 'stat' + (key && FLAG.has(key) ? ' flag' : ''), 'data-key': key || '', title: key && FLAG.has(key) ? 'This lowered the score' : null}, icon(ic), el('dl', {}, el('dt', {}, label), el('dd', {}, value ?? '—', sub ? el('small', {}, sub) : null)));
 
-  // Phones show 4 key tiles per card (plus any tile that lowered the score); "More details" shows the rest.
+  // Phones show only the tiles that lowered the score, plus one line with the key conditions;
+  // "More details" shows every tile. Computers always show every tile.
   const KEY_TILES = {land: ['temp', 'rain', 'wind', 'air'], sea: ['waves', 'rip', 'wind', 'water'], pool: ['temp', 'rain', 'lightning', 'uv']};
   function statGrid(kind, tiles) {
     const keys = KEY_TILES[kind];
-    tiles.forEach(t => { if (t && !keys.includes(t.dataset.key)) t.classList.add('extra'); });
-    const grid = el('dl', {class: 'stats'}, ...tiles);
+    tiles = tiles.filter(Boolean);
+    tiles.forEach(t => { if (!keys.includes(t.dataset.key)) t.classList.add('extra'); });
+    const flagged = tiles.some(t => t.classList.contains('flag'));
+    const grid = el('dl', {class: 'stats' + (flagged ? '' : ' none-flagged')}, ...tiles);
+    const val = t => { const dd = t.querySelector('dd'); return dd ? (dd.firstChild && dd.firstChild.nodeType === 3 ? dd.firstChild.textContent : dd.textContent).trim() : ''; };
+    const summary = keys.map(k => tiles.find(t => t.dataset.key === k)).filter(t => t && !t.classList.contains('flag'))
+      .map(t => `${t.querySelector('dt').textContent} ${val(t)}`);
+    const line = summary.length ? el('p', {class: 'stat-line'}, summary.join(' · ')) : null;
     const more = el('button', {type: 'button', class: 'more', 'aria-expanded': 'false'}, 'More details');
     more.addEventListener('click', () => { const card = more.closest('.win'); const open = card.classList.toggle('open'); more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Fewer details' : 'More details'; });
-    return [grid, more];
+    return [grid, line, more].filter(Boolean);
   }
 
   // Score for each hour, 4 AM–8 PM, with the window hours outlined.

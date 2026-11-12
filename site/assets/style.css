@@ -357,3 +357,10 @@ a{color:var(--orange)}
   .lightning.lw-slim .lw-actions{grid-column:auto}
   .lw-help-ok{width:100%}
 }
+/* Phones: only the shaded tiles, plus a one-line summary of the key conditions */
+.stat-line{display:none}
+@media(max-width:760px){
+  .win:not(.open) .stat:not(.flag){display:none}
+  .win:not(.open) .stats.none-flagged{display:none}
+  .win:not(.open) .stat-line{display:block;margin:0;padding:11px 16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-2);line-height:1.45}
+}
