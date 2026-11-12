@@ -304,7 +304,7 @@ async function main() {
   for (const [code, t] of Object.entries(TERRITORIES)) {
     const locsT = result.locations.filter(l => (l.territory || 'JM') === code);
     await writeFile(resolve(OUT, 'data', code.toLowerCase() + '.json'), JSON.stringify({...result, locations: locsT}));
-    const main = locsT.find(l => l.sport !== 'swim');
+    const main = (t.defaultPlace && locsT.find(l => l.key === t.defaultPlace && l.sport !== 'swim')) || locsT.find(l => l.sport !== 'swim');
     const brief = s => s ? {index: s.index, band: s.band, advice: s.advice} : null;
     if (main) summary.islands.push({code, name: t.name, tz: t.tz, path: t.path, place: main.name,
       days: main.days.map(d => ({date: d.date, am: brief(d.windows.am?.scores?.mixed), pm: brief(d.windows.pm?.scores?.mixed)}))});

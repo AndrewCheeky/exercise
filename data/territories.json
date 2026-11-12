@@ -3,6 +3,7 @@
     "name": "Jamaica",
     "brand": "Jamaica",
     "path": "",
+    "defaultPlace": "cherry-gardens",
     "hero": "assets/hero-jm.jpg",
     "hero900": "assets/hero-jm-900.jpg",
     "heroAlt": "A sunlit gravel lane winding through green trees in Jamaica",
