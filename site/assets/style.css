@@ -208,7 +208,7 @@ a{color:var(--orange)}
 [data-territory="BB"] .foot a{color:#ffd55c}
 [data-territory="BB"] .sport button[aria-pressed="true"]{box-shadow:0 4px 14px rgba(31,69,181,.45)}
 [data-territory="BB"] .brand-dot{background:#ffc726;box-shadow:0 0 0 4px rgba(255,199,38,.35)}
-/* Trinidad and Tobago: red, black and white */
+/* Trinidad and Tobago: red, white and black */
 [data-territory="TT"]{--orange:#c8102e;--orange-2:#ff4d5e;--orange-soft:#fdecee;--ink:#1d1d20}
 [data-territory="TT"] .hero{background:#1a1a1a}
 [data-territory="TT"] .brand i,[data-territory="TT"] .greeting,[data-territory="TT"] .next em{color:#ffc9cf}
