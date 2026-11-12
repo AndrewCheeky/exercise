@@ -430,8 +430,11 @@
       ? terrs.map(t => el('optgroup', {label: (data.territories && data.territories[t] && data.territories[t].name) || t}, ...list.filter(l => (l.territory || 'JM') === t).map(opt)))
       : list.map(opt)));
     if (!list.some(l => l.key === place)) {
-      // First visit (or the saved place is gone): Kingston for run & ride, the National Aquatic Centre for swimming.
-      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name)) : list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
+      // First visit (or the saved place is gone): the island's default place for run & ride (Jamaica: Cherry Gardens),
+      // otherwise Kingston or the first place; the National Aquatic Centre for swimming.
+      const dp = data.territories && data.territories[TERR] && data.territories[TERR].defaultPlace;
+      const def = mode === 'swim' ? list.find(l => /aquatic/i.test(l.name))
+        : (dp && list.find(l => l.key === dp)) || list.find(l => l.key === 'kingston') || list.find(l => /^kingston/i.test(l.name));
       place = (def || list[0])?.key || '';
     }
     sel.value = place;
