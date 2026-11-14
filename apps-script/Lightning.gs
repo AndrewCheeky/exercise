@@ -93,6 +93,7 @@ const LW = {
     ['Negril', 18.268, -78.348], ['Mandeville', 18.041, -77.507], ['Port Antonio', 18.177, -76.452],
     ['Morant Bay', 17.882, -76.409], ['Spanish Town', 17.991, -76.957], ['Portmore', 17.95, -76.883]],
   CAP_DEFAULT: 14000,
+  CYCLE_DAY: 9,                                   // Xweather's free allowance resets on this day of the month
   TZ: 'America/Jamaica',                          // the monthly counter rolls over on Jamaica's calendar
 };
 const lwRegionMeta_ = (props, r) => JSON.parse(props.getProperty('LW_META_' + r) || (r === 'JM' ? props.getProperty('LW_META') || '{}' : '{}'));
@@ -537,8 +538,9 @@ function lwCharge_(props, res, code, j, fallback, bucket) {
 
 function lwCap_(props) { return Number(props.getProperty('LIGHTNING_MONTHLY_CAP') || LW.CAP_DEFAULT); }
 
+/** The counter follows Xweather's billing cycle, which resets on the 9th (key = the month the cycle started in). */
 function lwRollMonth_(props, now) {
-  const month = Utilities.formatDate(now, LW.TZ, 'yyyy-MM');
+  const month = Utilities.formatDate(new Date(now.getTime() - (LW.CYCLE_DAY - 1) * 86400000), LW.TZ, 'yyyy-MM');
   if (props.getProperty('LW_MONTH') !== month) props.setProperties({LW_MONTH: month, LW_USED: '0'});
 }
 
