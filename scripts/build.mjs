@@ -316,6 +316,19 @@ async function main() {
   await writeFile(resolve(OUT, 'data', 'places.json'), JSON.stringify({generatedAt: result.generatedAt,
     places: result.locations.map(l => ({t: l.territory || 'JM', key: l.key, name: l.name, sport: l.sport, lat: l.lat, lon: l.lon,
       ...(mainKeys.has((l.territory || 'JM') + '|' + l.key) ? {main: 1} : {})}))}));
+  // Hours with rain or thunderstorms forecast at any place on each island, for the lightning watch's pace
+  // (checks every 10 minutes around those hours, hourly otherwise). A day listed with no hours = dry all day.
+  const wet = r => r.code >= 95 || (((r.code >= 61 && r.code <= 67) || (r.code >= 80 && r.code <= 82)) && (r.pop ?? 100) >= 30);
+  const risk = {generatedAt: result.generatedAt, regions: {}};
+  for (const l of result.locations) {
+    const reg = risk.regions[l.territory || 'JM'] ||= {};
+    for (const d of l.days || []) {
+      const hrs = reg[d.date] ||= [];
+      for (const r of d.hourly || []) { const h = Number(String(r.t).slice(0, 2)); if (wet(r) && !hrs.includes(h)) hrs.push(h); }
+    }
+  }
+  Object.values(risk.regions).forEach(reg => Object.values(reg).forEach(hrs => hrs.sort((a, b) => a - b)));
+  await writeFile(resolve(OUT, 'data', 'storm-risk.json'), JSON.stringify(risk));
   await islandPages();
   console.log(`WROTE ${resolve(OUT, 'data', 'forecast.json')} (${result.locations.length} locations)`);
 }

@@ -3,12 +3,17 @@
  * -------------------------------------------------
  * Add this as a new file (Lightning.gs) in the existing Wx-Exercise5day Apps Script project.
  * For Jamaica (two 100 km circles) and Trinidad (one), from 5 AM to 8 PM local time, it asks Xweather for
- * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 30 km of one of
+ * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 50 km of one of
  * that island's places on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes
  * of history on a ~2 km grid and serves it to the website at  …/exec?action=lightning
  * When lightning comes within 20 km of a watched place, it also asks Xweather's
  * Lightning Threats feed (at most every 20 minutes) where each storm is heading over the next hour,
  * so the website can say "likely to reach Kingston in about 30 minutes".
+ *
+ * Forecast pace: when the site's forecast shows no rain or thunderstorms at any place on an island from an
+ * hour ago to 2 hours ahead (data/storm-risk.json, refreshed with each site build), that island is checked
+ * only about once an hour. As soon as any lightning shows up around the island, or rain/storms are forecast,
+ * it goes back to every 10 minutes (every 5 within 50 km of a watched place). No forecast file → normal pace.
  *
  * Watched places: the faster checks and storm tracks are triggered only by the places people use most
  * (each island's default place plus its top places from the anonymous tally, Tally.gs, over the last
@@ -33,7 +38,7 @@
  * Regions: Jamaica (2 circles) and Trinidad (1 circle), each checked 5 AM–8 PM in its own local time,
  * each with its own quiet/active pace.
  * Budget (15 hours a day per region, 1 call per circle per poll):
- *   Jamaica: quiet 12 calls an hour, 24 with lightning within 30 km of a place.
+ *   Jamaica: quiet 12 calls an hour, 24 with lightning within 50 km of a place.
  *   Trinidad: quiet 6 calls an hour, 12 with lightning.
  *   A month with no lightning ≈ 5,600 (Jamaica) + 2,800 (Trinidad) calls.
  *   Each storm-track (Threats) request counts as 10 calls, at most 3 an hour while lightning is within 20 km of a watched place.
@@ -54,8 +59,12 @@ const LW = {
   START_HOUR: 5,                                  // first poll 5:00 AM
   END_HOUR: 20,                                   // last poll 7:55 PM
   ACTIVE_MIN: 20,                                 // lightning this recent…
-  ACTIVE_KM: 30,                                  // …and this close to a watched place → poll every 5 minutes
+  ACTIVE_KM: 50,                                  // …and this close to a watched place → poll every 5 minutes
   QUIET_GAP_MIN: 9,                               // otherwise wait at least this long between polls (≈ every 10 min)
+  CALM_GAP_MIN: 59,                               // …and this long (≈ hourly) when no rain or storms are forecast
+  RISK_BEFORE_H: 1,                               // forecast hours counted: from this many hours ago…
+  RISK_AHEAD_H: 2,                                // …to this many hours ahead
+  RISK_URL: 'https://active.islandsoutside.com/data/storm-risk.json',
   THREAT_KM: 20,                                  // ask for storm tracks when lightning is this close to a watched place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
   THREAT_GAP_MIN: 19,                             // at most one storm-track request every ~20 minutes
@@ -86,7 +95,7 @@ function lightningFeed_() {
   const regions = {};
   Object.keys(LW.REGIONS).forEach(r => {
     const m = lwRegionMeta_(props, r);
-    regions[r] = {name: LW.REGIONS[r].name, status: m.status || 'unknown', updated: m.updated || null, checked: m.checked || null, message: m.message || '', circles: LW.REGIONS[r].circles};
+    regions[r] = {name: LW.REGIONS[r].name, everyMin: m.every || 10, status: m.status || 'unknown', updated: m.updated || null, checked: m.checked || null, message: m.message || '', circles: LW.REGIONS[r].circles};
   });
   const out = {
     // Top level is Jamaica (older pages read it); each region's own status is under "regions".
@@ -131,15 +140,21 @@ function lwPoll() {
         if (hour < LW.START_HOUR || hour >= LW.END_HOUR) { lwMeta_(props, r, 'sleeping', 'Lightning watch runs 5 AM–8 PM.'); continue; }
         const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
         if (used + R.circles.length > cap) { lwMeta_(props, r, 'paused', `Monthly limit reached (${used}/${cap}).`); continue; }
-        // Quiet: no lightning within 30 km of this region's watched places in the last 20 minutes → poll about every 10 minutes.
+        // Active: lightning within 50 km of a watched place in the last 20 minutes → every 5 minutes.
+        // Otherwise every 10 minutes, or about hourly when no rain or storms are forecast and none is around.
         const mine = places.filter(p => (p[3] || 'JM') === r);
         const active = Object.keys(cells).some(k => {
           if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
           const [la, lo] = k.split(',').map(Number);
           return mine.some(p => lwKm_(la, lo, p[1], p[2]) <= LW.ACTIVE_KM);
         });
+        const storm = active || lwStormy_(props, r, now, cells);
+        const every = active ? 5 : storm ? 10 : 60;
         const lastPoll = Number(props.getProperty('LW_LAST_POLL_' + r) || 0);
-        if (!active && lwRegionMeta_(props, r).status === 'live' && now.getTime() - lastPoll < LW.QUIET_GAP_MIN * 60000) continue;
+        if (!active && lwRegionMeta_(props, r).status === 'live' && now.getTime() - lastPoll < (storm ? LW.QUIET_GAP_MIN : LW.CALM_GAP_MIN) * 60000) {
+          if (lwRegionMeta_(props, r).every !== every) lwMeta_(props, r, 'live', lwRegionMeta_(props, r).message || '', false, every);
+          continue;
+        }
         props.setProperty('LW_LAST_POLL_' + r, String(now.getTime()));
         let added = 0;
         for (const [lat, lon] of R.circles) {
@@ -155,7 +170,7 @@ function lwPoll() {
           }
         }
         polled = true;
-        lwMeta_(props, r, 'live', `${added} new strikes`, true);
+        lwMeta_(props, r, 'live', `${added} new strikes`, true, every);
       } catch (err) {
         const limited = err && err.limit;
         lwMeta_(props, r, limited ? 'paused' : 'error', String(err && err.message || err).slice(0, 200));
@@ -330,6 +345,49 @@ function lightningWatchedPlaces() {
   Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name}: ${why[r]} → ` + list.filter(p => p[3] === r).map(p => p[0] + (p[5] ? ' (default)' : '')).join(', ')));
 }
 
+/** True when this island needs the normal pace: lightning seen around it recently, or rain/storms forecast near now. */
+function lwStormy_(props, r, now, cells) {
+  const R = LW.REGIONS[r];
+  if (Object.keys(cells).some(k => { const [la, lo] = k.split(',').map(Number); return R.circles.some(([a, b]) => lwKm_(la, lo, a, b) <= LW.RADIUS_KM); })) return true;
+  const f = lwRisk_(props);
+  const days = f && f.regions && f.regions[r];
+  if (!days || now.getTime() - Date.parse(f.generatedAt) > 30 * 3600000) return true;     // no forecast → don't slow down
+  const hour = Number(Utilities.formatDate(now, R.tz, 'H'));
+  const hrs = days[Utilities.formatDate(now, R.tz, 'yyyy-MM-dd')];
+  if (!hrs) return true;
+  return hrs.some(h => h >= hour - LW.RISK_BEFORE_H && h <= hour + LW.RISK_AHEAD_H);
+}
+
+/** The site's rain/storm hours (data/storm-risk.json), re-read at most every 30 minutes. */
+function lwRisk_(props) {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('LW_RISK');
+  if (hit) return JSON.parse(hit);
+  let f = null;
+  try {
+    const res = UrlFetchApp.fetch(LW.RISK_URL, {muteHttpExceptions: true});
+    if (res.getResponseCode() === 200) { f = JSON.parse(res.getContentText()); props.setProperty('LW_RISK_COPY', res.getContentText()); }
+  } catch (e) { console.warn('[LW risk] ' + e); }
+  if (!f) { try { f = JSON.parse(props.getProperty('LW_RISK_COPY') || 'null'); } catch (e) {} }
+  if (f) cache.put('LW_RISK', JSON.stringify(f), 1800);
+  return f;
+}
+
+/** Run by hand: shows, for each island, whether rain or storms are forecast now and the pace that gives. */
+function lightningPace() {
+  const props = PropertiesService.getScriptProperties();
+  CacheService.getScriptCache().remove('LW_RISK');
+  const f = lwRisk_(props), now = new Date(), cells = lwLoadCells_();
+  if (!f) console.log('No forecast file yet: every island runs at the normal pace.');
+  else console.log('Forecast built ' + Utilities.formatDate(new Date(f.generatedAt), LW.TZ, 'EEE d MMM h:mm a'));
+  Object.keys(LW.REGIONS).forEach(r => {
+    const R = LW.REGIONS[r], day = Utilities.formatDate(now, R.tz, 'yyyy-MM-dd');
+    const hrs = f && f.regions && f.regions[r] && f.regions[r][day];
+    console.log(`${R.name}${R.suspended ? ' (suspended)' : ''}: rain/storm hours today ${hrs ? (hrs.length ? hrs.join(', ') : 'none') : 'unknown'} → ` +
+      (lwStormy_(props, r, now, cells) ? 'every 10 minutes (5 within 50 km)' : 'about hourly'));
+  });
+}
+
 function lwKm_(a, b, c, d) {
   const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(x));
@@ -349,11 +407,12 @@ function lwSaveCells_(cells) {
   CacheService.getScriptCache().put('LW_CELLS', JSON.stringify(cells), 6 * 3600);
 }
 
-function lwMeta_(props, region, status, message, ok) {
+function lwMeta_(props, region, status, message, ok, every) {
   const meta = lwRegionMeta_(props, region);
   const iso = new Date().toISOString();
   meta.status = status; meta.message = message; meta.checked = iso;
   if (ok) meta.updated = iso;
+  if (every) meta.every = every;
   props.setProperty('LW_META_' + region, JSON.stringify(meta));
   if (region === 'JM') props.setProperty('LW_META', JSON.stringify(meta));   // older pages read the top-level status
 }
