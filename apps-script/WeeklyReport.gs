@@ -5,7 +5,7 @@
  *   • visits and page views for islandsoutside.com, active. and marine. (Cloudflare Web Analytics)
  *   • the most-visited island pages, where visitors came from, countries and phone vs computer
  *   • the most-used places from the anonymous place tally (Tally.gs)
- *   • lightning calls used this month
+ *   • lightning watch: Xweather units used in the last 7 days and this billing cycle (resets on the 9th)
  * It goes to the Google account that owns this script.
  *
  * Setup (once), in the Wx-Exercise5day project:
@@ -75,15 +75,31 @@ function weeklyReport() {
       : '<p>No place counts yet.</p>'));
   } catch (e) { parts.push(`<p><b>Places:</b> ${esc(e.message)}</p>`); }
 
-  // ---- Lightning calls ----
-  const used = Number(props.getProperty('LW_USED') || 0), cap = Number(props.getProperty('LIGHTNING_MONTHLY_CAP') || 14000);
-  if (used) parts.push(`<p style="margin:16px 0 0">Lightning watch: ${used.toLocaleString()} of ${cap.toLocaleString()} Xweather calls used this month.</p>`);
+  // ---- Lightning watch (Xweather units) ----
+  try { parts.push(wrLightning_(props, fmt)); } catch (e) { parts.push(`<p><b>Lightning watch:</b> ${esc(e.message)}</p>`); }
 
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f252b;max-width:640px">
     <h2 style="margin:0 0 4px">One Caribbean We Outside – your week</h2>
     <p style="margin:0;color:#5b6570">${fmt(weekAgo)} – ${fmt(now)}</p>${parts.join('')}
     <p style="margin:22px 0 0;color:#8a939c;font-size:12px">Sent by the Wx-Exercise5day Apps Script every Sunday evening. Visit counts come from Cloudflare Web Analytics; place counts are anonymous.</p></div>`;
   MailApp.sendEmail({to: Session.getEffectiveUser().getEmail(), subject: 'One Caribbean We Outside – week to ' + fmt(now), htmlBody: html});
+}
+
+/** Xweather units (what Xweather bills: each request × its multiplier) for the last 7 days and this billing cycle. */
+function wrLightning_(props, fmt) {
+  let log = {}; try { log = JSON.parse(props.getProperty('LW_DAYLOG') || '{}'); } catch (e) {}
+  const names = {JM: 'Jamaica', TT: 'Trinidad', tracks: 'Storm tracks'};
+  const since = Utilities.formatDate(new Date(Date.now() - 7 * 86400000), WR.TZ, 'yyyy-MM-dd');
+  const week = {}; let weekTotal = 0;
+  Object.keys(log).filter(d => d > since).forEach(d => Object.keys(log[d]).forEach(b => { week[b] = (week[b] || 0) + log[d][b]; weekTotal += log[d][b]; }));
+  const used = Number(props.getProperty('LW_USED') || 0), cap = Number(props.getProperty('LIGHTNING_MONTHLY_CAP') || 14000);
+  const remaining = props.getProperty('LW_XW_REMAINING'), until = Number(props.getProperty('LW_PAUSED_UNTIL') || 0);
+  const n = v => Number(v).toLocaleString();
+  const lines = [];
+  lines.push(`Last 7 days: <b>${n(weekTotal)} units</b>` + (weekTotal ? ' (' + Object.keys(week).sort().map(b => `${names[b] || b} ${n(week[b])}`).join(' · ') + ')' : ''));
+  lines.push(`This billing cycle (since the 9th): ${n(used)} units used · the script stops at ${n(cap)}` + (remaining != null ? ` · Xweather says ${n(remaining)} left` : ''));
+  if (until > Date.now()) lines.push(`Paused because Xweather's limit was reached; next try ${Utilities.formatDate(new Date(until), WR.TZ, 'EEE d MMM h:mm a')}.`);
+  return '<h3 style="margin:18px 0 6px">Lightning watch (Xweather)</h3><p style="margin:0;line-height:1.6">' + lines.join('<br>') + '</p>';
 }
 
 function wrTable_(head, rows) {
