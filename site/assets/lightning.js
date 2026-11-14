@@ -108,8 +108,12 @@
     const fresh = R && R.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
     else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: `Live lightning is checked around ${watchedNames()} only for now. Watch the sky and listen for thunder.`};
-    else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
-      text: !R || R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : R.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : R.status === 'suspended' ? `Live lightning for ${REGION_NAME[TERR] || 'this island'} is paused for now. Watch the sky and listen for thunder.` : R.status === 'paused' ? 'It has used up its lightning data for now and will restart automatically. Watch the sky and listen for thunder.' : R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
+    else if (!fresh) {
+      const st = R ? R.status : 'unknown';
+      s = st === 'sleeping' ? {level: 'off', title: 'Lightning watch is off right now.', text: 'It runs from 5 AM to 8 PM.'}
+        : st === 'unknown' ? {level: 'off', title: 'Lightning watch is starting up.', text: 'The first check runs within 5 minutes.'}
+        : {level: 'off', title: 'Lightning watch is temporarily out of service.', text: 'Watch the sky and listen for thunder.'};
+    }
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
     const tr = fresh && covered(ref) ? track(ref) : null;
