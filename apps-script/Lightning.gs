@@ -3,7 +3,7 @@
  * -------------------------------------------------
  * Add this as a new file (Lightning.gs) in the existing Wx-Exercise5day Apps Script project.
  * For Jamaica (two 100 km circles) and Trinidad (one), from 5 AM to 8 PM local time, it asks Xweather for
- * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 60 km of one of
+ * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 30 km of one of
  * that island's places on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes
  * of history on a ~2 km grid and serves it to the website at  …/exec?action=lightning
  * When lightning comes within 20 km of a watched place, it also asks Xweather's
@@ -33,7 +33,7 @@
  * Regions: Jamaica (2 circles) and Trinidad (1 circle), each checked 5 AM–8 PM in its own local time,
  * each with its own quiet/active pace.
  * Budget (15 hours a day per region, 1 call per circle per poll):
- *   Jamaica: quiet 12 calls an hour, 24 with lightning within 60 km of a place.
+ *   Jamaica: quiet 12 calls an hour, 24 with lightning within 30 km of a place.
  *   Trinidad: quiet 6 calls an hour, 12 with lightning.
  *   A month with no lightning ≈ 5,600 (Jamaica) + 2,800 (Trinidad) calls.
  *   Each storm-track (Threats) request counts as 10 calls, at most 3 an hour while lightning is within 20 km of a watched place.
@@ -54,7 +54,7 @@ const LW = {
   START_HOUR: 5,                                  // first poll 5:00 AM
   END_HOUR: 20,                                   // last poll 7:55 PM
   ACTIVE_MIN: 20,                                 // lightning this recent…
-  ACTIVE_KM: 60,                                  // …and this close to a watched place → poll every 5 minutes
+  ACTIVE_KM: 30,                                  // …and this close to a watched place → poll every 5 minutes
   QUIET_GAP_MIN: 9,                               // otherwise wait at least this long between polls (≈ every 10 min)
   THREAT_KM: 20,                                  // ask for storm tracks when lightning is this close to a watched place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
@@ -131,7 +131,7 @@ function lwPoll() {
         if (hour < LW.START_HOUR || hour >= LW.END_HOUR) { lwMeta_(props, r, 'sleeping', 'Lightning watch runs 5 AM–8 PM.'); continue; }
         const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
         if (used + R.circles.length > cap) { lwMeta_(props, r, 'paused', `Monthly limit reached (${used}/${cap}).`); continue; }
-        // Quiet: no lightning within 60 km of this region's watched places in the last 20 minutes → poll about every 10 minutes.
+        // Quiet: no lightning within 30 km of this region's watched places in the last 20 minutes → poll about every 10 minutes.
         const mine = places.filter(p => (p[3] || 'JM') === r);
         const active = Object.keys(cells).some(k => {
           if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
