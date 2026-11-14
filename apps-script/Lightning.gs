@@ -15,6 +15,12 @@
  * only about once an hour. As soon as any lightning shows up around the island, or rain/storms are forecast,
  * it goes back to every 10 minutes (every 5 within 50 km of a watched place). No forecast file → normal pace.
  *
+ * "Check now": a visitor can ask for an immediate check for the place shown on their card
+ * (…/exec?action=lightning&check=1&t=JM&k=place-key&lat=…&lon=…). Each place can be checked at most once
+ * every 60 minutes, whoever presses it, and each island at most 4 times an hour and 24 times a day.
+ * If lightning is found, the place joins the watched places for an hour, so the normal pace takes over
+ * (every 5 minutes within 50 km, every 10 otherwise).
+ *
  * Watched places: the faster checks and storm tracks are triggered only by the places people use most
  * (each island's default place plus its top places from the anonymous tally, Tally.gs, over the last
  * 30 days), not every place on the site. Lightning itself is still collected for the whole island, so
@@ -26,7 +32,8 @@
  *  1. Add this file to the Wx-Exercise5day project.
  *  2. In Code.gs doGet, add the lightning route as the FIRST line after "action" is read,
  *     before setupExwxOps() and the forecast build, so it stays fast:
- *        if (action === 'lightning') return lightningFeed_();
+ *        if (action === 'lightning') return lightningFeed_(e);
+ *     (pass e so the website's "Check now" button works)
  *  3. Project Settings → Script Properties → add XWEATHER_ID and XWEATHER_SECRET
  *     (optional: LIGHTNING_MONTHLY_CAP, default 14000).
  *  4. Run testLightning() and allow the new permission. The log shows whether data comes back.
@@ -64,6 +71,10 @@ const LW = {
   CALM_GAP_MIN: 59,                               // …and this long (≈ hourly) when no rain or storms are forecast
   RISK_BEFORE_H: 1,                               // forecast hours counted: from this many hours ago…
   RISK_AHEAD_H: 2,                                // …to this many hours ahead
+  CHECK_GAP_MIN: 60,                              // "Check now": once per place per this many minutes (all visitors)
+  CHECK_MAX_HOUR: 4,                              // …and at most this many per island per hour
+  CHECK_MAX_DAY: 24,                              // …and per day
+  CHECK_KEEP_MIN: 60,                             // a checked place with lightning nearby stays watched this long
   RISK_URL: 'https://active.islandsoutside.com/data/storm-risk.json',
   THREAT_KM: 20,                                  // ask for storm tracks when lightning is this close to a watched place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
@@ -87,8 +98,10 @@ const LW = {
 const lwRegionMeta_ = (props, r) => JSON.parse(props.getProperty('LW_META_' + r) || (r === 'JM' ? props.getProperty('LW_META') || '{}' : '{}'));
 
 /** Web app route: GET …/exec?action=lightning returns the current lightning picture. */
-function lightningFeed_() {
+function lightningFeed_(e) {
   const props = PropertiesService.getScriptProperties();
+  const q = (e && e.parameter) || {};
+  const check = q.check ? lwCheckNow_(props, q) : null;
   const meta = JSON.parse(props.getProperty('LW_META') || '{}');
   const cells = lwLoadCells_();
   const nowSec = Math.floor(Date.now() / 1000);
@@ -111,6 +124,9 @@ function lightningFeed_() {
     // Storm tracks for the next hour: [{dirTo, dirToDEG, kph, reliability, severe, periods: [[start s, end s, [[lat, lon], …]], …]}]
     threats: lwLoadThreats_(),
     regions, radiusKm: LW.RADIUS_KM,
+    checks: lwChecks_(props).list,                // {"JM:cherry-gardens": last check (unix s)} for the last hour
+    checkGapMin: LW.CHECK_GAP_MIN,
+    ...(check ? {check} : {}),
     source: 'Xweather',
   };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
@@ -125,7 +141,7 @@ function lwPoll() {
     const now = new Date(), nowSec = Math.floor(now.getTime() / 1000);
     lwRollMonth_(props, now);
     const cells = lwLoadCells_();
-    const places = lwWatched_(props);
+    const places = lwWatchedNow_(props);
     const cache = CacheService.getScriptCache();
     const seenBefore = new Set(JSON.parse(cache.get('LW_SEEN') || '[]'));
     const seenNow = [];
@@ -212,7 +228,7 @@ function lwMaybeThreats_(props, cells, now) {
   if (Number(props.getProperty('LW_THREAT_OFF_UNTIL') || 0) > now.getTime()) return;
   if (Number(props.getProperty('LW_PAUSED_UNTIL') || 0) > now.getTime()) return;
   if (now.getTime() - Number(props.getProperty('LW_THREAT_AT') || 0) < LW.THREAT_GAP_MIN * 60000) return;
-  const places = lwWatched_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
+  const places = lwWatchedNow_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
   let best = null;                                // the place with the closest recent strike
   Object.keys(cells).forEach(k => {
     if (cells[k][0] < nowSec - LW.THREAT_RECENT_MIN * 60) return;
@@ -343,6 +359,78 @@ function lightningWatchedPlaces() {
   props.deleteProperty('LW_PLACES3');
   const list = lwWatched_(props), why = JSON.parse(props.getProperty('LW_WATCH')).why;
   Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name}: ${why[r]} → ` + list.filter(p => p[3] === r).map(p => p[0] + (p[5] ? ' (default)' : '')).join(', ')));
+}
+
+// ---------- "Check now" from the website ----------
+
+/** Last checks per place (unix s), dropped after an hour, plus counts per island for the hour and the day. */
+function lwChecks_(props) {
+  let c = {}; try { c = JSON.parse(props.getProperty('LW_CHECKS') || '{}') || {}; } catch (e) {}
+  const nowS = Math.floor(Date.now() / 1000), list = {};
+  Object.keys(c.list || {}).forEach(k => { if (nowS - c.list[k] < LW.CHECK_GAP_MIN * 60) list[k] = c.list[k]; });
+  return {list, hour: c.hour || {}, day: c.day || {}};
+}
+
+/** Runs one check for a place if the limits allow it. Returns {result, found, nearestKm, next}. */
+function lwCheckNow_(props, q) {
+  const r = String(q.t || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), R = LW.REGIONS[r];
+  const key = String(q.k || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 60);
+  const lat = Number(q.lat), lon = Number(q.lon);
+  if (!R || !key || !isFinite(lat) || !isFinite(lon) || !R.circles.some(([a, b]) => lwKm_(lat, lon, a, b) <= LW.RADIUS_KM)) return {result: 'invalid'};
+  const id = r + ':' + key, now = new Date(), nowS = Math.floor(now.getTime() / 1000);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return {result: 'busy'};
+  try {
+    const c = lwChecks_(props);
+    if (c.list[id]) return {result: 'recent', at: c.list[id], next: c.list[id] + LW.CHECK_GAP_MIN * 60};
+    const meta = lwRegionMeta_(props, r);
+    const hour = Number(Utilities.formatDate(now, R.tz, 'H'));
+    if (R.suspended || Number(props.getProperty('LW_PAUSED_UNTIL') || 0) > now.getTime() || hour < LW.START_HOUR || hour >= LW.END_HOUR) return {result: 'off'};
+    if (meta.every === 5) return {result: 'fast'};                       // already checking every 5 minutes
+    const hKey = r + Utilities.formatDate(now, R.tz, 'yyyyMMddHH'), dKey = r + Utilities.formatDate(now, R.tz, 'yyyyMMdd');
+    if ((c.hour[hKey] || 0) >= LW.CHECK_MAX_HOUR || (c.day[dKey] || 0) >= LW.CHECK_MAX_DAY) return {result: 'limit'};
+    const used = Number(props.getProperty('LW_USED') || 0);
+    if (used + 1 > lwCap_(props)) return {result: 'off'};
+    // Record first, so a failed request still counts against the limits.
+    c.list[id] = nowS;
+    c.hour = {[hKey]: (c.hour[hKey] || 0) + 1};
+    c.day = {[dKey]: (c.day[dKey] || 0) + 1};
+    props.setProperty('LW_CHECKS', JSON.stringify(c));
+    const cells = lwLoadCells_();
+    const cache = CacheService.getScriptCache(), seen = new Set(JSON.parse(cache.get('LW_SEEN') || '[]'));
+    let list;
+    try { list = lwFetch_(props, lat, lon, r); } catch (err) { console.warn('[LW check] ' + err); return {result: 'error'}; }
+    let nearest = null;
+    for (const s of list) {
+      const sid = s.id, la = s.loc && s.loc.lat, lo = s.loc && s.loc.long, ts = s.ob && s.ob.timestamp;
+      if (la == null || lo == null || !ts) continue;
+      const d = lwKm_(lat, lon, la, lo); if (nearest == null || d < nearest) nearest = d;
+      if (sid) { if (seen.has(sid)) continue; seen.add(sid); }
+      const ck = (Math.round(la / LW.GRID) * LW.GRID).toFixed(2) + ',' + (Math.round(lo / LW.GRID) * LW.GRID).toFixed(2);
+      const cg = s.ob.pulse && s.ob.pulse.type === 'cg' ? 1 : 0;
+      const old = cells[ck] || [0, 0, 0];
+      cells[ck] = [Math.max(old[0], ts), old[1] + 1, old[2] || cg];
+    }
+    lwSaveCells_(cells);
+    cache.put('LW_SEEN', JSON.stringify([...seen].slice(-3000)), 900);
+    lwMeta_(props, r, 'live', `check now: ${list.length} strikes`, true, meta.every || 10);
+    if (list.length) {                                                   // lightning around: watch this place for an hour
+      let extra = []; try { extra = JSON.parse(props.getProperty('LW_EXTRA') || '[]'); } catch (e) {}
+      extra = extra.filter(p => p[6] > now.getTime() && !(p[3] === r && p[4] === key));
+      extra.push(['Visitor check: ' + key, lat, lon, r, key, 0, now.getTime() + LW.CHECK_KEEP_MIN * 60000]);
+      props.setProperty('LW_EXTRA', JSON.stringify(extra.slice(-20)));
+    }
+    console.log(`[LW check] ${id}: ${list.length} strikes, nearest ${nearest == null ? '–' : nearest.toFixed(1) + ' km'}`);
+    return {result: 'done', found: list.length, nearestKm: nearest == null ? null : Math.round(nearest), at: nowS, next: nowS + LW.CHECK_GAP_MIN * 60};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Watched places plus places a visitor checked that had lightning around (for an hour). */
+function lwWatchedNow_(props) {
+  let extra = []; try { extra = JSON.parse(props.getProperty('LW_EXTRA') || '[]'); } catch (e) {}
+  return lwWatched_(props).concat(extra.filter(p => p[6] > Date.now()));
 }
 
 /** True when this island needs the normal pace: lightning seen around it recently, or rain/storms forecast near now. */

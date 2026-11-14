@@ -350,6 +350,7 @@ a{color:var(--orange)}
 .mini-hide:hover{text-decoration:underline}
 /* Lightning Watch "?" help, opened inside the card (like the New here? tip) */
 .lw-actions{display:flex;align-items:center;gap:8px;justify-self:end}
+.lw-check[disabled]{opacity:.75;cursor:default;font-weight:600}
 .lw-q{width:32px;height:32px;flex:none;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:grid;place-items:center;padding:0}
 .lw-q[aria-expanded="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
 .lw-q:focus-visible{outline:3px solid var(--orange-2);outline-offset:2px}
@@ -365,6 +366,10 @@ a{color:var(--orange)}
 @media(max-width:760px){
   .lightning:not(.lw-slim) .lw-actions{grid-column:1/-1;justify-self:stretch;justify-content:space-between}
   .lightning.lw-slim .lw-actions{grid-column:auto}
+  .lightning.lw-slim:has(.lw-check) .lw-actions{grid-column:1/-1;justify-self:stretch;flex-wrap:wrap}
+  .lightning.lw-slim:has(.lw-check) .lw-q{margin-left:auto}
+  .lightning.lw-slim .lw-gps.lw-check{width:auto;padding:0 14px}
+  .lightning.lw-slim .lw-gps.lw-check span{display:inline}
   .lw-help-ok{width:100%}
 }
 /* Phones: only the shaded tiles, plus a one-line summary of the key conditions */
