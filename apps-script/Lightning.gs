@@ -6,7 +6,8 @@
  * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 50 km of one of
  * that island's places on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes
  * of history on a ~2 km grid and serves it to the website at  …/exec?action=lightning
- * When lightning comes within 20 km of a watched place, it also asks Xweather's
+ * When lightning within 20 km of a watched place is MOVING TOWARD it (the newest strikes are closer
+ * than the ones 10–30 minutes earlier), it also asks Xweather's
  * Lightning Threats feed (at most every 20 minutes) where each storm is heading over the next hour,
  * so the website can say "likely to reach Kingston in about 30 minutes".
  *
@@ -77,6 +78,7 @@ const LW = {
   CHECK_KEEP_MIN: 60,                             // a checked place with lightning nearby stays watched this long
   RISK_URL: 'https://active.islandsoutside.com/data/storm-risk.json',
   THREAT_KM: 20,                                  // ask for storm tracks when lightning is this close to a watched place
+  THREAT_APPROACH_KM: 3,                          // "heading toward": newest strikes at least this much closer than earlier ones
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
   THREAT_GAP_MIN: 19,                             // at most one storm-track request every ~20 minutes
   LIMIT_PAUSE_H: 6,                               // after Xweather says the limit is reached, wait this long before trying again
@@ -103,6 +105,7 @@ function lightningFeed_(e) {
   const props = PropertiesService.getScriptProperties();
   const q = (e && e.parameter) || {};
   const check = q.check ? lwCheckNow_(props, q) : null;
+  if (q.near) lwNearMe_(props, q);
   const meta = JSON.parse(props.getProperty('LW_META') || '{}');
   const cells = lwLoadCells_();
   const nowSec = Math.floor(Date.now() / 1000);
@@ -230,11 +233,18 @@ function lwMaybeThreats_(props, cells, now) {
   if (Number(props.getProperty('LW_PAUSED_UNTIL') || 0) > now.getTime()) return;
   if (now.getTime() - Number(props.getProperty('LW_THREAT_AT') || 0) < LW.THREAT_GAP_MIN * 60000) return;
   const places = lwWatchedNow_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
-  let best = null;                                // the place with the closest recent strike
-  Object.keys(cells).forEach(k => {
-    if (cells[k][0] < nowSec - LW.THREAT_RECENT_MIN * 60) return;
-    const [la, lo] = k.split(',').map(Number);
-    places.forEach(p => { const d = lwKm_(la, lo, p[1], p[2]); if (d <= LW.THREAT_KM && (!best || d < best.d)) best = {d, p}; });
+  // Only for a storm that is coming closer: compare where lightning is now (last 10 minutes) with where it
+  // was 10–30 minutes ago, around each watched place and each visitor using their location.
+  const recentFrom = nowSec - LW.THREAT_RECENT_MIN * 60, olderFrom = nowSec - 30 * 60;
+  const pts = Object.keys(cells).filter(k => cells[k][0] >= olderFrom).map(k => { const [la, lo] = k.split(',').map(Number); return [la, lo, cells[k][0] >= recentFrom]; });
+  const mean5 = ds => { const s = ds.sort((a, b) => a - b).slice(0, 5); return s.length ? s.reduce((a, b) => a + b, 0) / s.length : null; };
+  let best = null;                                // the place the storm is approaching most closely
+  places.forEach(p => {
+    const recent = [], older = [];
+    pts.forEach(([la, lo, isRecent]) => { const d = lwKm_(la, lo, p[1], p[2]); if (d <= 40) (isRecent ? recent : older).push(d); });
+    if (!recent.length || !older.length) return;
+    const nearest = Math.min(...recent), now5 = mean5(recent), then5 = mean5(older);
+    if (nearest <= LW.THREAT_KM && now5 <= then5 - LW.THREAT_APPROACH_KM && (!best || nearest < best.d)) best = {d: nearest, p, closer: then5 - now5};
   });
   if (!best) return;
   const used = Number(props.getProperty('LW_USED') || 0);
@@ -247,7 +257,7 @@ function lwMaybeThreats_(props, cells, now) {
     return;
   }
   lwSaveThreats_(res.list, nowSec);
-  console.log(`[LW threats] ${res.list.length} storm(s) near ${best.p[0]} (strike ${best.d.toFixed(1)} km away)`);
+  console.log(`[LW threats] ${res.list.length} storm(s) near ${best.p[0]} (strike ${best.d.toFixed(1)} km away, ${best.closer.toFixed(1)} km closer than earlier)`);
 }
 
 function lwFetchThreats_(props, lat, lon) {
@@ -423,6 +433,27 @@ function lwCheckNow_(props, q) {
     }
     console.log(`[LW check] ${id}: ${list.length} strikes, nearest ${nearest == null ? '–' : nearest.toFixed(1) + ' km'}`);
     return {result: 'done', found: list.length, nearestKm: nearest == null ? null : Math.round(nearest), at: nowS, next: nowS + LW.CHECK_GAP_MIN * 60};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * A visitor using "my location" with lightning within 40 km: their rough spot (about 5 km) joins the watched
+ * places for 30 minutes, so a storm heading for them can get a storm track. Nothing else is kept. No Xweather call.
+ */
+function lwNearMe_(props, q) {
+  const r = String(q.t || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), R = LW.REGIONS[r];
+  const lat = Math.round(Number(q.lat) * 20) / 20, lon = Math.round(Number(q.lon) * 20) / 20;
+  if (!R || !isFinite(lat) || !isFinite(lon) || !R.circles.some(([a, b]) => lwKm_(lat, lon, a, b) <= LW.RADIUS_KM)) return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return;
+  try {
+    const key = 'g' + lat.toFixed(2) + '_' + lon.toFixed(2), now = Date.now();
+    let extra = []; try { extra = JSON.parse(props.getProperty('LW_EXTRA') || '[]'); } catch (e) {}
+    extra = extra.filter(p => p[6] > now && !(p[3] === r && p[4] === key));
+    extra.push(['A visitor near ' + lat.toFixed(2) + ', ' + lon.toFixed(2), lat, lon, r, key, 0, now + 30 * 60000]);
+    props.setProperty('LW_EXTRA', JSON.stringify(extra.slice(-20)));
   } finally {
     lock.releaseLock();
   }

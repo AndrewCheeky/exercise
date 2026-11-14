@@ -48,6 +48,15 @@
     if (last && Date.now() / 1000 - last < feed.checkGapMin * 60) return `<button type="button" class="lw-gps lw-check" disabled title="Checked at ${clock(last * 1000)}. Each place can be checked once an hour.">Next check ${clock((last + feed.checkGapMin * 60) * 1000)}</button>`;
     return `<button type="button" class="lw-gps lw-check" title="Hearing thunder or seeing dark clouds? Check for lightning around here now.">${BOLT}<span>Check now</span></button>`;
   }
+  // Lightning near a visitor using their location: send a rough spot (about 5 km) at most every 15 minutes,
+  // so the storm tracker also watches storms heading for them. Not linked to the visitor in any way.
+  let lastPing = 0;
+  function nearPing(g) {
+    if (Date.now() - lastPing < 15 * 60000 || /^(localhost|127\.)/.test(location.hostname)) return;
+    lastPing = Date.now();
+    const q = new URLSearchParams({near: '1', t: TERR, lat: (Math.round(g.lat * 20) / 20).toFixed(2), lon: (Math.round(g.lon * 20) / 20).toFixed(2)});
+    fetch(`${URL_}&${q}`, {cache: 'no-store', credentials: 'omit'}).catch(() => {});
+  }
   async function checkNow(ref) {
     if (checking) return;
     checking = true; checkMsg = ''; render();
@@ -146,6 +155,7 @@
       if (s.level === 'clear' && tr.eta != null) s = {level: 'watch', title: 'Storm heading your way.', text: line + ' Plan to be indoors before it arrives.'};
       else if (s.level !== 'clear' && s.level !== 'off') s = {...s, text: s.text + ' ' + line};
     }
+    if (useGps && gps && fresh && /watch|warn|danger/.test(s.level)) nearPing(gps);
     const gpsBtn = `<button type="button" class="lw-gps" aria-pressed="${useGps && !!gps}">${GPS}<span>${useGps && gps ? 'Using your location' : 'Use my location'}</span></button>`;
     // Nothing nearby (or watch not running): one slim line, so the forecast cards come first.
     if (s.level === 'clear' || s.level === 'off') {
