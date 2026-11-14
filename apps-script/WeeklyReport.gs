@@ -10,9 +10,8 @@
  *
  * Setup (once), in the Wx-Exercise5day project:
  *  1. Add this file (WeeklyReport.gs). Tally.gs must already be in the project.
- *  2. In Cloudflare: My Profile → API Tokens → Create Token → Custom token, with READ-ONLY permissions:
- *        Account · Account Analytics · Read
- *        Account · Web Analytics · Read   (if listed; it lets the script find your three sites)
+ *  2. In Cloudflare: My Profile → API Tokens → Create Token → Custom token, with one READ-ONLY permission:
+ *        Analytics & Logs · Account Analytics · Read
  *     Account Resources: your account. Copy the token.
  *  3. Your Account ID: Cloudflare dashboard → any domain → Overview → right-hand column "Account ID".
  *  4. Project Settings → Script Properties: CF_API_TOKEN = the token, CF_ACCOUNT_ID = the Account ID.
@@ -44,15 +43,12 @@ function weeklyReport() {
   if (!token || !account) {
     parts.push('<p><b>Visits:</b> add CF_API_TOKEN and CF_ACCOUNT_ID in Script Properties to include Cloudflare numbers.</p>');
   } else {
-    let sites = [];
-    try { sites = wrSites_(token, account); } catch (e) { parts.push(`<p><b>Visits:</b> couldn't list your Web Analytics sites (${esc(e.message)}).</p>`); }
     const islandViews = {}, refs = {}, countries = {}, devices = {};
     const rows = [];
     for (const [host, label] of WR.SITES) {
-      const site = sites.find(s => (s.host || '').replace(/^www\./, '') === host);
-      if (!site) { rows.push([label, '–', '–', 'not found in Web Analytics']); continue; }
       try {
-        const cur = wrQuery_(token, account, site.site_tag, weekAgo, now), prev = wrQuery_(token, account, site.site_tag, twoWeeksAgo, weekAgo);
+        // Looked up by web address, so the token only needs Account Analytics: Read.
+        const cur = wrQuery_(token, account, host, weekAgo, now), prev = wrQuery_(token, account, host, twoWeeksAgo, weekAgo);
         const change = prev.views ? Math.round((cur.views - prev.views) / prev.views * 100) : null;
         rows.push([label, cur.visits != null ? cur.visits : '–', cur.views, change == null ? 'new' : (change >= 0 ? '+' : '') + change + '% vs last week']);
         cur.paths.forEach(([p, n]) => {
@@ -97,20 +93,9 @@ function wrTable_(head, rows) {
   return `<table style="border-collapse:collapse;width:100%;font-size:13px"><tr>${th}</tr>${tr}</table>`;
 }
 
-/** Your Web Analytics sites: [{site_tag, host}]. Falls back to Script Property WA_SITE_TAGS = host=tag,host=tag. */
-function wrSites_(token, account) {
-  const manual = PropertiesService.getScriptProperties().getProperty('WA_SITE_TAGS');
-  if (manual) return manual.split(',').map(s => s.split('=')).filter(p => p.length === 2).map(([host, tag]) => ({host: host.trim(), site_tag: tag.trim()}));
-  const res = UrlFetchApp.fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/rum/site_info/list?per_page=50`,
-    {headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
-  const j = JSON.parse(res.getContentText());
-  if (!j.success) throw Error((j.errors && j.errors[0] && j.errors[0].message) || 'HTTP ' + res.getResponseCode());
-  return (j.result || []).map(s => ({site_tag: s.site_tag, host: s.host || (s.ruleset && s.ruleset.zone_name) || ''}));
-}
-
 /** One site, one period: totals plus top pages, referrers, countries and devices. */
-function wrQuery_(token, account, siteTag, from, to) {
-  const f = `{siteTag: "${siteTag}", datetime_geq: "${from.toISOString()}", datetime_lt: "${to.toISOString()}"}`;
+function wrQuery_(token, account, host, from, to) {
+  const f = `{requestHost: "${host}", datetime_geq: "${from.toISOString()}", datetime_lt: "${to.toISOString()}"}`;
   const group = (alias, dim) => `${alias}: rumPageloadEventsAdaptiveGroups(filter: ${f}, limit: 10, orderBy: [count_DESC]) { count dimensions { ${dim} } }`;
   const body = withVisits => `query { viewer { accounts(filter: {accountTag: "${account}"}) {
     total: rumPageloadEventsAdaptiveGroups(filter: ${f}, limit: 1) { count ${withVisits ? 'sum { visits }' : ''} }
