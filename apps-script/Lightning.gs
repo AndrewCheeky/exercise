@@ -40,7 +40,7 @@ const LW = {
   // island (not Tobago, which has no places on the site yet).
   REGIONS: {
     JM: {name: 'Jamaica', tz: 'America/Jamaica', circles: [[18.15, -77.75], [18.10, -76.80]]},
-    TT: {name: 'Trinidad', tz: 'America/Port_of_Spain', circles: [[10.45, -61.30]]},
+    TT: {name: 'Trinidad', tz: 'America/Port_of_Spain', circles: [[10.45, -61.30]], suspended: true},   // suspended to save Xweather tokens; set false to resume
   },
   RADIUS_KM: 100,
   KEEP_MIN: 45,                                   // history kept for the 30-minute rule
@@ -52,7 +52,9 @@ const LW = {
   QUIET_GAP_MIN: 9,                               // otherwise wait at least this long between polls (≈ every 10 min)
   THREAT_KM: 30,                                  // ask for storm tracks when lightning is this close to a place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
-  THREAT_GAP_MIN: 9,                              // at most one storm-track request every ~10 minutes
+  THREAT_GAP_MIN: 19,                             // at most one storm-track request every ~20 minutes
+  LIMIT_PAUSE_H: 6,                               // after Xweather says the limit is reached, wait this long before trying again
+  LOW_REMAINING: 300,                             // pause when Xweather reports fewer tokens left than this
   THREAT_COST: 10,                                // Xweather counts each Threats request as 10 calls
   THREAT_KEEP_MIN: 15,                            // storm tracks older than this are dropped
   PLACES_URL: 'https://active.islandsoutside.com/data/places.json',
@@ -112,6 +114,9 @@ function lwPoll() {
     for (const r of Object.keys(LW.REGIONS)) {
       const R = LW.REGIONS[r];
       try {
+        if (R.suspended) { lwMeta_(props, r, 'suspended', 'Lightning watch is paused for this island for now.'); continue; }
+        const pausedUntil = Number(props.getProperty('LW_PAUSED_UNTIL') || 0);
+        if (pausedUntil > now.getTime()) { lwMeta_(props, r, 'paused', 'Xweather data limit reached; trying again later.'); continue; }
         const hour = Number(Utilities.formatDate(now, R.tz, 'H'));
         if (hour < LW.START_HOUR || hour >= LW.END_HOUR) { lwMeta_(props, r, 'sleeping', 'Lightning watch runs 5 AM–8 PM.'); continue; }
         const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
@@ -128,7 +133,7 @@ function lwPoll() {
         props.setProperty('LW_LAST_POLL_' + r, String(now.getTime()));
         let added = 0;
         for (const [lat, lon] of R.circles) {
-          for (const s of lwFetch_(props, lat, lon)) {
+          for (const s of lwFetch_(props, lat, lon, r)) {
             const id = s.id, la = s.loc && s.loc.lat, lo = s.loc && s.loc.long, ts = s.ob && s.ob.timestamp;
             if (la == null || lo == null || !ts) continue;
             if (id) { if (seenBefore.has(id) || seenNow.indexOf(id) >= 0) continue; seenNow.push(id); }
@@ -142,7 +147,8 @@ function lwPoll() {
         polled = true;
         lwMeta_(props, r, 'live', `${added} new strikes`, true);
       } catch (err) {
-        lwMeta_(props, r, 'error', String(err && err.message || err).slice(0, 200));
+        const limited = err && err.limit;
+        lwMeta_(props, r, limited ? 'paused' : 'error', String(err && err.message || err).slice(0, 200));
         console.error(r + ': ' + err);
       }
     }
@@ -156,7 +162,7 @@ function lwPoll() {
   }
 }
 
-function lwFetch_(props, lat, lon) {
+function lwFetch_(props, lat, lon, region) {
   const clean = v => String(v || '').trim().replace(/^["']+|["']+$/g, '');   // ignore stray spaces or quotes
   const id = clean(props.getProperty('XWEATHER_ID')), secret = clean(props.getProperty('XWEATHER_SECRET'));
   if (!id || !secret) throw Error('Add XWEATHER_ID and XWEATHER_SECRET in Script Properties');
@@ -164,9 +170,9 @@ function lwFetch_(props, lat, lon) {
     '&radius=' + LW.RADIUS_KM + 'km&limit=1000' +
     '&client_id=' + encodeURIComponent(id) + '&client_secret=' + encodeURIComponent(secret);
   const res = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
-  props.setProperty('LW_USED', String(Number(props.getProperty('LW_USED') || 0) + 1));
   const code = res.getResponseCode();
   let j; try { j = JSON.parse(res.getContentText()); } catch (e) { throw Error('Xweather HTTP ' + code + ' (not JSON)'); }
+  lwCharge_(props, res, code, j, 1, region || 'JM');
   const warnNoData = j.error && j.error.code === 'warn_no_data';
   if (!j.success && !warnNoData) throw Error('Xweather: ' + (j.error ? j.error.code + ' – ' + j.error.description : 'HTTP ' + code));
   if (!j.response) return [];
@@ -179,6 +185,7 @@ function lwFetch_(props, lat, lon) {
 function lwMaybeThreats_(props, cells, now) {
   const nowSec = Math.floor(now.getTime() / 1000);
   if (Number(props.getProperty('LW_THREAT_OFF_UNTIL') || 0) > now.getTime()) return;
+  if (Number(props.getProperty('LW_PAUSED_UNTIL') || 0) > now.getTime()) return;
   if (now.getTime() - Number(props.getProperty('LW_THREAT_AT') || 0) < LW.THREAT_GAP_MIN * 60000) return;
   const places = lwPlaces_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
   let best = null;                                // the place with the closest recent strike
@@ -209,9 +216,9 @@ function lwFetchThreats_(props, lat, lon) {
     '&radius=' + LW.RADIUS_KM + 'km&limit=10' +
     '&client_id=' + encodeURIComponent(id) + '&client_secret=' + encodeURIComponent(secret);
   const res = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
-  props.setProperty('LW_USED', String(Number(props.getProperty('LW_USED') || 0) + LW.THREAT_COST));
   const code = res.getResponseCode();
   let j; try { j = JSON.parse(res.getContentText()); } catch (e) { throw Error('Threats HTTP ' + code + ' (not JSON)'); }
+  lwCharge_(props, res, code, j, LW.THREAT_COST, 'tracks');
   if (j.error && j.error.code === 'warn_no_data') return {list: []};
   if (!j.success) {
     const message = j.error ? j.error.code + ' – ' + j.error.description : 'HTTP ' + code;
@@ -289,6 +296,36 @@ function lwMeta_(props, region, status, message, ok) {
   if (region === 'JM') props.setProperty('LW_META', JSON.stringify(meta));   // older pages read the top-level status
 }
 
+/**
+ * Adds what Xweather actually charged for a request (X-Cost-Tokens header; fallback when missing) to the monthly
+ * counter and a daily log, keeps Xweather's own "remaining" figure, and pauses everything when the limit is reached.
+ */
+function lwCharge_(props, res, code, j, fallback, bucket) {
+  const h = {};
+  const raw = res.getAllHeaders ? res.getAllHeaders() : res.getHeaders();
+  Object.keys(raw || {}).forEach(k => { h[k.toLowerCase()] = String(raw[k]); });
+  const limit = code === 429 || (j && j.error && /maxhits|limit/i.test(j.error.code || ''));
+  if (limit) {
+    props.setProperty('LW_PAUSED_UNTIL', String(Date.now() + LW.LIMIT_PAUSE_H * 3600000));
+    const e = Error('Xweather: ' + (j && j.error ? j.error.code + ' – ' + j.error.description : 'HTTP 429')); e.limit = true; throw e;
+  }
+  if (code >= 400) return;                       // Xweather doesn't charge for errors
+  const tokens = Number(h['x-cost-tokens']) || fallback;
+  props.setProperty('LW_USED', String(Number(props.getProperty('LW_USED') || 0) + tokens));
+  const remaining = h['x-ratelimit-remaining-period'];
+  if (remaining != null && remaining !== '') {
+    props.setProperty('LW_XW_REMAINING', remaining);
+    if (Number(remaining) < LW.LOW_REMAINING) props.setProperty('LW_PAUSED_UNTIL', String(Date.now() + LW.LIMIT_PAUSE_H * 3600000));
+  }
+  if (h['x-cost-multipliers']) props.setProperty('LW_XW_MULT_' + (bucket === 'tracks' ? 'TRACKS' : 'STRIKES'), h['x-cost-multipliers'] + ' = ' + tokens);
+  // Daily log of tokens by island / storm tracks (last 40 days).
+  const day = Utilities.formatDate(new Date(), LW.TZ, 'yyyy-MM-dd');
+  let log = {}; try { log = JSON.parse(props.getProperty('LW_DAYLOG') || '{}'); } catch (e) {}
+  log[day] = log[day] || {}; log[day][bucket] = (log[day][bucket] || 0) + tokens;
+  Object.keys(log).sort().slice(0, -40).forEach(d => delete log[d]);
+  props.setProperty('LW_DAYLOG', JSON.stringify(log));
+}
+
 function lwCap_(props) { return Number(props.getProperty('LIGHTNING_MONTHLY_CAP') || LW.CAP_DEFAULT); }
 
 function lwRollMonth_(props, now) {
@@ -300,9 +337,9 @@ function lwRollMonth_(props, now) {
 function testLightning() {
   const props = PropertiesService.getScriptProperties();
   lwRollMonth_(props, new Date());
-  Object.keys(LW.REGIONS).forEach(r => {
+  Object.keys(LW.REGIONS).filter(r => !LW.REGIONS[r].suspended).forEach(r => {
     const [lat, lon] = LW.REGIONS[r].circles[0];
-    const list = lwFetch_(props, lat, lon);
+    const list = lwFetch_(props, lat, lon, r);
     console.log(`Strikes in the last 5 minutes within 100 km of ${LW.REGIONS[r].name} (${lat}, ${lon}): ${list.length}`);
     if (list.length) console.log(JSON.stringify(list[0]));
   });
@@ -329,8 +366,14 @@ function testLightningThreats() {
 /** Run by hand: shows the month's usage and the last status. */
 function lightningStatus() {
   const props = PropertiesService.getScriptProperties();
-  console.log('Used ' + (props.getProperty('LW_USED') || 0) + ' / ' + lwCap_(props) + ' in ' + props.getProperty('LW_MONTH'));
-  Object.keys(LW.REGIONS).forEach(r => console.log(LW.REGIONS[r].name + ': ' + JSON.stringify(lwRegionMeta_(props, r))));
+  console.log('Used ' + (props.getProperty('LW_USED') || 0) + ' / ' + lwCap_(props) + ' tokens in ' + props.getProperty('LW_MONTH') + ' (counted from Xweather\'s own charges)');
+  const rem = props.getProperty('LW_XW_REMAINING'); if (rem) console.log('Xweather says remaining this period: ' + rem);
+  const until = Number(props.getProperty('LW_PAUSED_UNTIL') || 0);
+  if (until > Date.now()) console.log('Paused (Xweather limit) until ' + Utilities.formatDate(new Date(until), LW.TZ, 'EEE d MMM h:mm a'));
+  ['STRIKES', 'TRACKS'].forEach(k => { const m = props.getProperty('LW_XW_MULT_' + k); if (m) console.log(`Cost of one ${k === 'TRACKS' ? 'storm-track' : 'strike'} request (endpoint × time × area): ${m}`); });
+  Object.keys(LW.REGIONS).forEach(r => console.log(LW.REGIONS[r].name + (LW.REGIONS[r].suspended ? ' (suspended)' : '') + ': ' + JSON.stringify(lwRegionMeta_(props, r))));
+  let log = {}; try { log = JSON.parse(props.getProperty('LW_DAYLOG') || '{}'); } catch (e) {}
+  Object.keys(log).sort().slice(-7).forEach(d => console.log(`${d}: ` + Object.keys(log[d]).map(b => `${b === 'tracks' ? 'storm tracks' : (LW.REGIONS[b] ? LW.REGIONS[b].name : b)} ${log[d][b]}`).join(' · ')));
 }
 
 /** Run once: runs every 5 minutes (outside each region's 5 AM–8 PM, and on quiet in-between runs, it skips that region). */
