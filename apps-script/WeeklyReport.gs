@@ -96,9 +96,12 @@ function wrLightning_(props, fmt) {
   const remaining = props.getProperty('LW_XW_REMAINING'), until = Number(props.getProperty('LW_PAUSED_UNTIL') || 0);
   const n = v => Number(v).toLocaleString();
   const lines = [];
-  lines.push(`Last 7 days: <b>${n(weekTotal)} units</b>` + (weekTotal ? ' (' + Object.keys(week).sort().map(b => `${names[b] || b} ${n(week[b])}`).join(' · ') + ')' : ''));
-  lines.push(`This billing cycle (since the 9th): ${n(used)} units used · the script stops at ${n(cap)}` + (remaining != null ? ` · Xweather says ${n(remaining)} left` : ''));
-  if (until > Date.now()) lines.push(`Paused because Xweather's limit was reached; next try ${Utilities.formatDate(new Date(until), WR.TZ, 'EEE d MMM h:mm a')}.`);
+  const paused = until > Date.now();
+  lines.push(weekTotal ? `Last 7 days: <b>${n(weekTotal)} units</b> (` + Object.keys(week).sort().map(b => `${names[b] || b} ${n(week[b])}`).join(' · ') + ')'
+    : `Last 7 days: no units used${paused ? ' (no checks ran while paused)' : ''}.`);
+  lines.push(`This billing cycle (since the 9th), as counted by the script: ${n(used)} units · it stops at ${n(cap)}` + (remaining != null ? ` · Xweather says ${n(remaining)} left` : '') +
+    '. Xweather\'s dashboard has the official figure.');
+  if (paused) lines.push(`Paused: Xweather's free allowance is used up. It tries again every 6 hours (next ${Utilities.formatDate(new Date(until), WR.TZ, 'EEE d MMM h:mm a')}) and resumes when the allowance resets on the 9th.`);
   return '<h3 style="margin:18px 0 6px">Lightning watch (Xweather)</h3><p style="margin:0;line-height:1.6">' + lines.join('<br>') + '</p>';
 }
 
