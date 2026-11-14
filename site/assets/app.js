@@ -404,7 +404,7 @@
     const L = loc(); if (!L) return;
     if (dayIdx == null || dayIdx >= L.days.length) dayIdx = autoDay(L);
     brandFor(L); hero(); renderDays();
-    document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon}}));
+    document.dispatchEvent(new CustomEvent('jwa:place', {detail: {name: L.name, lat: L.lat, lon: L.lon, key: L.key}}));
     const day = L.days[dayIdx], now = jaNow();
     const pastMorning = day.date === now.date && now.hour >= NOON;
     const wins = $('windows');

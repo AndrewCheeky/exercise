@@ -21,6 +21,7 @@
     return circles.some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM); };
   const watchedNames = () => feed && feed.regions ? Object.values(feed.regions).filter(r => r.status !== 'suspended').map(r => r.name).join(' and ') : 'Jamaica';
 
+  let checkMsg = '', checking = false;
   let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '', helpOpen = false;
   const HELP = `<div class="lw-help" id="lw-help">
     <p class="lw-help-h">⚡ Lightning Watch: how it works</p>
@@ -38,8 +39,34 @@
     <p class="lw-help-end"><b>Hear thunder? Go indoors.</b> <button type="button" class="lw-help-ok">Got it</button></p>
   </div>`;
   const qBtn = () => `<button type="button" class="lw-q" aria-label="How Lightning Watch works" aria-expanded="${helpOpen}" aria-controls="lw-help">?</button>`;
+  // "Check now": one immediate check per place per hour, shared by all visitors (limits are kept on the server).
+  const checkKey = ref => ref === place && place.key ? place.key : `g${ref.lat.toFixed(1)}_${ref.lon.toFixed(1)}`;
+  function checkBtn(ref) {
+    if (!feed || !feed.checkGapMin) return '';
+    const last = feed.checks && feed.checks[`${TERR}:${checkKey(ref)}`];
+    if (checking) return `<button type="button" class="lw-gps lw-check" disabled>Checking…</button>`;
+    if (last && Date.now() / 1000 - last < feed.checkGapMin * 60) return `<button type="button" class="lw-gps lw-check" disabled title="Checked at ${clock(last * 1000)}. Each place can be checked once an hour.">Next check ${clock((last + feed.checkGapMin * 60) * 1000)}</button>`;
+    return `<button type="button" class="lw-gps lw-check" title="Hearing thunder or seeing dark clouds? Check for lightning around here now.">${BOLT}<span>Check now</span></button>`;
+  }
+  async function checkNow(ref) {
+    if (checking) return;
+    checking = true; checkMsg = ''; render();
+    const q = new URLSearchParams({check: '1', t: TERR, k: checkKey(ref), lat: ref.lat.toFixed(3), lon: ref.lon.toFixed(3)});
+    try {
+      const r = await fetch(`${URL_}&${q}`, {cache: 'no-store'});
+      if (r.ok) { feed = await r.json(); }
+      const c = feed && feed.check, res = c && c.result;
+      checkMsg = res === 'done' ? (c.found ? '' : 'Checked just now: no lightning around.')
+        : res === 'recent' ? `Already checked at ${clock(c.at * 1000)}. Each place can be checked once an hour.`
+        : res === 'limit' ? 'Too many checks this hour. Try again later, and watch the sky.'
+        : res === 'fast' ? 'Already checking every 5 minutes.'
+        : 'Couldn\'t check right now. Watch the sky and listen for thunder.';
+    } catch { checkMsg = 'Couldn\'t check right now. Watch the sky and listen for thunder.'; }
+    checking = false; render();
+  }
   function wire() {
-    const g = box.querySelector('.lw-gps'); if (g) g.addEventListener('click', toggleGps);
+    const ck = box.querySelector('.lw-check:not([disabled])'); if (ck) ck.addEventListener('click', () => { const ref = useGps && gps ? {lat: gps.lat, lon: gps.lon} : place; if (ref) checkNow(ref); });
+    const g = box.querySelector('.lw-gps:not(.lw-check)'); if (g) g.addEventListener('click', toggleGps);
     const q = box.querySelector('.lw-q'); if (q) q.addEventListener('click', () => { helpOpen = !helpOpen; render(); if (helpOpen) box.querySelector('.lw-help-ok')?.focus({preventScroll: true}); });
     const ok = box.querySelector('.lw-help-ok'); if (ok) ok.addEventListener('click', () => { helpOpen = false; render(); box.querySelector('.lw-q')?.focus({preventScroll: true}); });
   }
@@ -124,7 +151,8 @@
     if (s.level === 'clear' || s.level === 'off') {
       const sub = s.level === 'clear' ? `${where}${fresh ? ` · updated ${clock(updated)}${every >= 60 ? ' · no storms forecast, checked hourly' : ''}` : ''}` : (s.text || where);
       box.className = 'lightning lw-slim lw-' + s.level;
-      box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${sub}</p></div><div class="lw-actions">${s.level === 'clear' ? gpsBtn : ''}${qBtn()}</div>${helpOpen ? HELP : ''}`;
+      const canCheck = s.level === 'clear' && every > 5;
+      box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${checkMsg ? esc(checkMsg) + ' · ' : ''}${sub}</p></div><div class="lw-actions">${canCheck ? checkBtn(ref) : ''}${s.level === 'clear' ? gpsBtn : ''}${qBtn()}</div>${helpOpen ? HELP : ''}`;
       wire();
       box.hidden = false;
       return;
@@ -159,7 +187,7 @@
     if (useGps) locate(); else render();
   }
 
-  document.addEventListener('jwa:place', e => { place = e.detail; render(); });
+  document.addEventListener('jwa:place', e => { place = e.detail; checkMsg = ''; render(); });
   pull();
   setInterval(() => { if (!document.hidden) pull(); }, 2 * 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
