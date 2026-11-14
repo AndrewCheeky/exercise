@@ -19,7 +19,7 @@
   const region = () => feed && feed.regions ? feed.regions[TERR] || null : (TERR === 'JM' && feed ? feed : null);
   const covered = ref => { const r = region(), circles = r && Array.isArray(r.circles) ? r.circles : COVER[TERR] || [];
     return circles.some(([la, lo]) => km(ref.lat, ref.lon, la, lo) <= ((feed && feed.radiusKm) || COVER_KM) - EDGE_KM); };
-  const watchedNames = () => feed && feed.regions ? Object.values(feed.regions).map(r => r.name).join(' and ') : 'Jamaica';
+  const watchedNames = () => feed && feed.regions ? Object.values(feed.regions).filter(r => r.status !== 'suspended').map(r => r.name).join(' and ') : 'Jamaica';
 
   let feed = null, place = null, gps = null, useGps = store.get('jwa.gps', '0') === '1', gpsMsg = '', helpOpen = false;
   const HELP = `<div class="lw-help" id="lw-help">
@@ -109,7 +109,7 @@
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
     else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: `Live lightning is checked around ${watchedNames()} only for now. Watch the sky and listen for thunder.`};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
-      text: !R || R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : R.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : R.status === 'paused' ? 'It has reached this month\'s data limit and restarts on the 1st.' : R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
+      text: !R || R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : R.status === 'sleeping' ? 'It runs from 5 AM to 8 PM.' : R.status === 'suspended' ? `Live lightning for ${REGION_NAME[TERR] || 'this island'} is paused for now. Watch the sky and listen for thunder.` : R.status === 'paused' ? 'It has used up its lightning data for now and will restart automatically. Watch the sky and listen for thunder.' : R.status === 'unknown' ? 'It is starting up. The first check runs within 5 minutes.' : 'Live lightning data isn\'t available at the moment.'};
     else s = assess(ref);
     const where = useGps && gps ? 'your location' : esc(ref.name);
     const tr = fresh && covered(ref) ? track(ref) : null;
