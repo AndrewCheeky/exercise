@@ -301,18 +301,21 @@ async function main() {
   await writeFile(resolve(OUT, 'data', 'forecast.json'), JSON.stringify(result));
   // One smaller file per island (each island page loads only its own), plus a tiny summary for the home page.
   const summary = {generatedAt: result.generatedAt, islands: []};
+  const mainKeys = new Set();
   for (const [code, t] of Object.entries(TERRITORIES)) {
     const locsT = result.locations.filter(l => (l.territory || 'JM') === code);
     await writeFile(resolve(OUT, 'data', code.toLowerCase() + '.json'), JSON.stringify({...result, locations: locsT}));
     const main = (t.defaultPlace && locsT.find(l => l.key === t.defaultPlace && l.sport !== 'swim')) || locsT.find(l => l.sport !== 'swim');
+    if (main) mainKeys.add(code + '|' + main.key);
     const brief = s => s ? {index: s.index, band: s.band, advice: s.advice} : null;
     if (main) summary.islands.push({code, name: t.name, tz: t.tz, path: t.path, place: main.name,
       days: main.days.map(d => ({date: d.date, am: brief(d.windows.am?.scores?.mixed), pm: brief(d.windows.pm?.scores?.mixed)}))});
   }
   await writeFile(resolve(OUT, 'data', 'summary.json'), JSON.stringify(summary));
-  // Place list for the lightning watch (Apps Script), so storm tracks are checked near every place on the site.
+  // Place list for the lightning watch (Apps Script). "main" marks each island's default place, which is always watched.
   await writeFile(resolve(OUT, 'data', 'places.json'), JSON.stringify({generatedAt: result.generatedAt,
-    places: result.locations.map(l => ({t: l.territory || 'JM', name: l.name, sport: l.sport, lat: l.lat, lon: l.lon}))}));
+    places: result.locations.map(l => ({t: l.territory || 'JM', key: l.key, name: l.name, sport: l.sport, lat: l.lat, lon: l.lon,
+      ...(mainKeys.has((l.territory || 'JM') + '|' + l.key) ? {main: 1} : {})}))}));
   await islandPages();
   console.log(`WROTE ${resolve(OUT, 'data', 'forecast.json')} (${result.locations.length} locations)`);
 }
