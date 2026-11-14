@@ -105,7 +105,8 @@
     let s;
     const R = region();
     const updated = R && R.updated ? new Date(R.updated).getTime() : 0;
-    const fresh = R && R.status === 'live' && Date.now() - updated < STALE_MIN * 60000;
+    const every = (R && R.everyMin) || 10;
+    const fresh = R && R.status === 'live' && Date.now() - updated < Math.max(STALE_MIN, every + 6) * 60000;
     if (!feed) s = {level: 'off', title: 'Checking for lightning…', text: ''};
     else if (!covered(ref)) s = {level: 'off', title: 'Lightning watch doesn\'t cover this area yet.', text: `Live lightning is checked around ${watchedNames()} only for now. Watch the sky and listen for thunder.`};
     else if (!fresh) s = {level: 'off', title: 'Lightning watch is off right now.',
@@ -121,7 +122,7 @@
     const gpsBtn = `<button type="button" class="lw-gps" aria-pressed="${useGps && !!gps}">${GPS}<span>${useGps && gps ? 'Using your location' : 'Use my location'}</span></button>`;
     // Nothing nearby (or watch not running): one slim line, so the forecast cards come first.
     if (s.level === 'clear' || s.level === 'off') {
-      const sub = s.level === 'clear' ? `${where}${fresh ? ` · updated ${clock(updated)}` : ''}` : (s.text || where);
+      const sub = s.level === 'clear' ? `${where}${fresh ? ` · updated ${clock(updated)}${every >= 60 ? ' · no storms forecast, checked hourly' : ''}` : ''}` : (s.text || where);
       box.className = 'lightning lw-slim lw-' + s.level;
       box.innerHTML = `<div class="lw-icon">${BOLT}</div><div class="lw-body"><h2>${esc(s.title)}</h2><p class="lw-kicker">${gpsMsg ? esc(gpsMsg) + ' · ' : ''}${sub}</p></div><div class="lw-actions">${s.level === 'clear' ? gpsBtn : ''}${qBtn()}</div>${helpOpen ? HELP : ''}`;
       wire();
