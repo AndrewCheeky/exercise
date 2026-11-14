@@ -454,6 +454,23 @@
     if (m === mode) return;
     mode = m; sport = mode === 'swim' ? 'swim' : 'mixed'; store.set('jwa.mode', mode);
     place = store.get(placeKey(), ''); dayIdx = null; amOpen = false; fillPlaces(); render();
+    tally('mode');
+  }
+
+  // Anonymous place tally: island, mode, place and what happened (opened / picked / mode switch).
+  // Nothing about the visitor is sent; each event is counted at most once per page visit.
+  const lwScript = document.querySelector('script[data-url*="script.google.com"]');
+  // Switched on by data-tally="on" on that script tag, once the Apps Script has the tally route.
+  const TALLY_URL = lwScript && lwScript.dataset.tally === 'on' ? lwScript.dataset.url.split('?')[0] : '';
+  const tallied = new Set();
+  function tally(kind) {
+    const L = loc();
+    if (!TALLY_URL || !L || /^(localhost|127\.)/.test(location.hostname)) return;
+    const id = [TERR, mode, L.key, kind].join('|');
+    if (tallied.has(id)) return;
+    tallied.add(id);
+    const q = new URLSearchParams({action: 'tally', t: TERR, m: mode, p: L.key, k: kind});
+    try { fetch(`${TALLY_URL}?${q}`, {mode: 'no-cors', keepalive: true, credentials: 'omit'}).catch(() => {}); } catch {}
   }
 
   async function load() {
@@ -467,7 +484,7 @@
     const sel = $('place');
     if (!data.locations.some(l => l.sport === 'swim' && (l.territory || 'JM') === TERR)) { $('mode').hidden = true; mode = 'land'; sport = 'mixed'; }
     fillPlaces();
-    sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = null; amOpen = false; render(); });
+    sel.addEventListener('change', () => { place = sel.value; store.set(placeKey(), place); dayIdx = null; amOpen = false; render(); tally('pick'); });
     // Coming back to the page later (e.g. after noon or 6:30 PM): re-pick the day and fold the morning if it has passed.
     let lastDay = jaNow().date + (jaNow().hour >= EVENING_OVER ? 'e' : jaNow().hour >= NOON ? 'n' : 'm');
     document.addEventListener('visibilitychange', () => {
@@ -480,6 +497,7 @@
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
     if (Date.now() - gen.getTime() > 13 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 13 hours old. The latest update may have failed.'; $('stale').hidden = false; }
     render();
+    tally('open');
   }
   load();
 })();
