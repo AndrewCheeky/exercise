@@ -6,9 +6,15 @@
  * the last 5 minutes of lightning: every 5 minutes while there has been lightning within 60 km of one of
  * that island's places on the website in the last 20 minutes, every 10 minutes otherwise. It keeps 45 minutes
  * of history on a ~2 km grid and serves it to the website at  …/exec?action=lightning
- * When lightning comes within 30 km of any place on the website, it also asks Xweather's
- * Lightning Threats feed (at most every 10 minutes) where each storm is heading over the next hour,
+ * When lightning comes within 20 km of a watched place, it also asks Xweather's
+ * Lightning Threats feed (at most every 20 minutes) where each storm is heading over the next hour,
  * so the website can say "likely to reach Kingston in about 30 minutes".
+ *
+ * Watched places: the faster checks and storm tracks are triggered only by the places people use most
+ * (each island's default place plus its top places from the anonymous tally, Tally.gs, over the last
+ * 30 days), not every place on the site. Lightning itself is still collected for the whole island, so
+ * every place on the site still shows nearby strikes. Until an island has enough tally counts, all of
+ * its places are watched. The list is refreshed once a day.
  * The website works out the distance on the visitor's phone, so their GPS never leaves it.
  *
  * Setup (once):
@@ -30,7 +36,7 @@
  *   Jamaica: quiet 12 calls an hour, 24 with lightning within 60 km of a place.
  *   Trinidad: quiet 6 calls an hour, 12 with lightning.
  *   A month with no lightning ≈ 5,600 (Jamaica) + 2,800 (Trinidad) calls.
- *   Each storm-track (Threats) request counts as 10 calls, at most 6 an hour while a storm is within 30 km.
+ *   Each storm-track (Threats) request counts as 10 calls, at most 3 an hour while lightning is within 20 km of a watched place.
  * It stops calling for the rest of the month if the counter would pass the cap.
  * All keys here start with LW_ so nothing clashes with the email script's cache or properties.
  */
@@ -48,15 +54,19 @@ const LW = {
   START_HOUR: 5,                                  // first poll 5:00 AM
   END_HOUR: 20,                                   // last poll 7:55 PM
   ACTIVE_MIN: 20,                                 // lightning this recent…
-  ACTIVE_KM: 60,                                  // …and this close to a place → poll every 5 minutes
+  ACTIVE_KM: 60,                                  // …and this close to a watched place → poll every 5 minutes
   QUIET_GAP_MIN: 9,                               // otherwise wait at least this long between polls (≈ every 10 min)
-  THREAT_KM: 30,                                  // ask for storm tracks when lightning is this close to a place
+  THREAT_KM: 20,                                  // ask for storm tracks when lightning is this close to a watched place
   THREAT_RECENT_MIN: 10,                          // …and that lightning is this recent
   THREAT_GAP_MIN: 19,                             // at most one storm-track request every ~20 minutes
   LIMIT_PAUSE_H: 6,                               // after Xweather says the limit is reached, wait this long before trying again
   LOW_REMAINING: 300,                             // pause when Xweather reports fewer tokens left than this
   THREAT_COST: 10,                                // Xweather counts each Threats request as 10 calls
   THREAT_KEEP_MIN: 15,                            // storm tracks older than this are dropped
+  WATCH_TOP: 6,                                   // watched places per island: its default place + this many of the most used
+  WATCH_DAYS: 30,                                 // …counted over this many days of the place tally
+  WATCH_MIN_COUNT: 3,                             // a place needs at least this many opens + picks to count as "used"
+  WATCH_MIN_TOTAL: 20,                            // until an island has this many counts in total, watch all its places
   PLACES_URL: 'https://active.islandsoutside.com/data/places.json',
   // Used if the website's place list can't be read.
   FALLBACK_PLACES: [['Kingston', 18.012, -76.797], ['Montego Bay', 18.476, -77.893], ['Ocho Rios', 18.408, -77.103],
@@ -106,7 +116,7 @@ function lwPoll() {
     const now = new Date(), nowSec = Math.floor(now.getTime() / 1000);
     lwRollMonth_(props, now);
     const cells = lwLoadCells_();
-    const places = lwPlaces_(props);
+    const places = lwWatched_(props);
     const cache = CacheService.getScriptCache();
     const seenBefore = new Set(JSON.parse(cache.get('LW_SEEN') || '[]'));
     const seenNow = [];
@@ -121,7 +131,7 @@ function lwPoll() {
         if (hour < LW.START_HOUR || hour >= LW.END_HOUR) { lwMeta_(props, r, 'sleeping', 'Lightning watch runs 5 AM–8 PM.'); continue; }
         const used = Number(props.getProperty('LW_USED') || 0), cap = lwCap_(props);
         if (used + R.circles.length > cap) { lwMeta_(props, r, 'paused', `Monthly limit reached (${used}/${cap}).`); continue; }
-        // Quiet: no lightning within 60 km of this region's places in the last 20 minutes → poll about every 10 minutes.
+        // Quiet: no lightning within 60 km of this region's watched places in the last 20 minutes → poll about every 10 minutes.
         const mine = places.filter(p => (p[3] || 'JM') === r);
         const active = Object.keys(cells).some(k => {
           if (cells[k][0] < nowSec - LW.ACTIVE_MIN * 60) return false;
@@ -181,13 +191,13 @@ function lwFetch_(props, lat, lon, region) {
 
 // ---------- Storm tracks (Xweather Lightning Threats) ----------
 
-/** Asks for storm tracks when recent lightning is within 30 km of a place on the website. */
+/** Asks for storm tracks when recent lightning is within 20 km of a watched place. */
 function lwMaybeThreats_(props, cells, now) {
   const nowSec = Math.floor(now.getTime() / 1000);
   if (Number(props.getProperty('LW_THREAT_OFF_UNTIL') || 0) > now.getTime()) return;
   if (Number(props.getProperty('LW_PAUSED_UNTIL') || 0) > now.getTime()) return;
   if (now.getTime() - Number(props.getProperty('LW_THREAT_AT') || 0) < LW.THREAT_GAP_MIN * 60000) return;
-  const places = lwPlaces_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
+  const places = lwWatched_(props).filter(p => lwRegionMeta_(props, p[3] || 'JM').status === 'live');
   let best = null;                                // the place with the closest recent strike
   Object.keys(cells).forEach(k => {
     if (cells[k][0] < nowSec - LW.THREAT_RECENT_MIN * 60) return;
@@ -254,18 +264,70 @@ function lwLoadThreats_() {
   return t;
 }
 
-/** The website's places in the watched regions (run & ride and swim) as [name, lat, lon, region], refreshed once a day. */
+/** The website's places in the watched regions (run & ride and swim) as [name, lat, lon, region, key, main], refreshed once a day. */
 function lwPlaces_(props) {
-  const cached = JSON.parse(props.getProperty('LW_PLACES2') || 'null');
+  const cached = JSON.parse(props.getProperty('LW_PLACES3') || 'null');
   if (cached && Date.now() - cached.at < 24 * 3600000 && cached.list.length) return cached.list;
   try {
     const res = UrlFetchApp.fetch(LW.PLACES_URL, {muteHttpExceptions: true});
     if (res.getResponseCode() === 200) {
-      const list = JSON.parse(res.getContentText()).places.filter(p => LW.REGIONS[p.t]).map(p => [p.name, p.lat, p.lon, p.t]);
-      if (list.length) { props.setProperty('LW_PLACES2', JSON.stringify({at: Date.now(), list})); return list; }
+      const list = JSON.parse(res.getContentText()).places.filter(p => LW.REGIONS[p.t]).map(p => [p.name, p.lat, p.lon, p.t, p.key || '', p.main ? 1 : 0]);
+      if (list.length) { props.setProperty('LW_PLACES3', JSON.stringify({at: Date.now(), list})); return list; }
     }
   } catch (e) { console.warn('[LW places] ' + e); }
   return cached && cached.list.length ? cached.list : LW.FALLBACK_PLACES.map(p => p.concat('JM'));
+}
+
+/**
+ * The places that trigger faster checks and storm tracks: per island, its default place plus the most-used
+ * places from the tally. An island without enough counts yet keeps all its places. Refreshed once a day.
+ */
+function lwWatched_(props) {
+  const cached = JSON.parse(props.getProperty('LW_WATCH') || 'null');
+  if (cached && Date.now() - cached.at < 24 * 3600000 && cached.list.length) return cached.list;
+  const places = lwPlaces_(props);
+  let counts = {};
+  try { counts = lwTallyCounts_(props, LW.WATCH_DAYS); } catch (e) { console.warn('[LW watch] tally not read: ' + e); }
+  const list = [], why = {};
+  Object.keys(LW.REGIONS).forEach(r => {
+    const mine = places.filter(p => (p[3] || 'JM') === r);
+    const total = mine.reduce((n, p) => n + (counts[r + '|' + p[4]] || 0), 0);
+    if (total < LW.WATCH_MIN_TOTAL) { mine.forEach(p => list.push(p)); why[r] = `all ${mine.length} places (only ${total} tally counts so far)`; return; }
+    const top = mine.filter(p => !p[5] && (counts[r + '|' + p[4]] || 0) >= LW.WATCH_MIN_COUNT)
+      .sort((a, b) => (counts[r + '|' + b[4]] || 0) - (counts[r + '|' + a[4]] || 0)).slice(0, LW.WATCH_TOP);
+    const pick = mine.filter(p => p[5]).concat(top);
+    pick.forEach(p => list.push(p));
+    why[r] = `${pick.length} of ${mine.length} places`;
+  });
+  props.setProperty('LW_WATCH', JSON.stringify({at: Date.now(), list, why}));
+  return list;
+}
+
+/** Opens + picks per place over the last N days, from the tally sheet and today's counts: {'JM|cherry-gardens': 42, …} */
+function lwTallyCounts_(props, days) {
+  const tz = LW.TZ, since = Utilities.formatDate(new Date(Date.now() - days * 86400000), tz, 'yyyy-MM-dd');
+  const out = {};
+  const add = (t, p, c) => { if (!t || t === 'XX' || !p) return; const k = t + '|' + p; out[k] = (out[k] || 0) + (Number(c[0]) || 0) + (Number(c[1]) || 0); };
+  const id = props.getProperty('TALLY_SHEET_ID');
+  if (id) {
+    const sh = SpreadsheetApp.openById(id).getSheetByName('Daily');
+    if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues().forEach(r => {
+      const day = r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'yyyy-MM-dd') : String(r[0]);
+      if (day >= since) add(String(r[1]), String(r[3]), [r[4], r[5]]);
+    });
+  }
+  let d = {}; try { d = JSON.parse(props.getProperty('TALLY_TODAY') || '{}') || {}; } catch (e) {}
+  Object.keys(d.c || {}).forEach(k => { const [t, , p] = k.split('|'); add(t, p, d.c[k]); });
+  return out;
+}
+
+/** Run by hand: refreshes and lists the watched places now (otherwise it refreshes once a day by itself). */
+function lightningWatchedPlaces() {
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty('LW_WATCH');
+  props.deleteProperty('LW_PLACES3');
+  const list = lwWatched_(props), why = JSON.parse(props.getProperty('LW_WATCH')).why;
+  Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name}: ${why[r]} → ` + list.filter(p => p[3] === r).map(p => p[0] + (p[5] ? ' (default)' : '')).join(', ')));
 }
 
 function lwKm_(a, b, c, d) {
@@ -343,8 +405,8 @@ function testLightning() {
     console.log(`Strikes in the last 5 minutes within 100 km of ${LW.REGIONS[r].name} (${lat}, ${lon}): ${list.length}`);
     if (list.length) console.log(JSON.stringify(list[0]));
   });
-  const pl = lwPlaces_(props);
-  Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name} places watched: ${pl.filter(p => (p[3] || 'JM') === r).length}`));
+  const pl = lwWatched_(props);
+  Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name} places watched: ${pl.filter(p => (p[3] || 'JM') === r).map(p => p[0]).join(', ')}`));
   console.log('Calls used this month: ' + props.getProperty('LW_USED') + ' / ' + lwCap_(props));
 }
 
@@ -359,7 +421,7 @@ function testLightningThreats() {
     console.log('Storm tracks work. Storms near Jamaica right now: ' + res.list.length + ' (0 is normal when skies are clear).');
     if (res.list.length) console.log(JSON.stringify(res.list[0].details));
   }
-  console.log('Places watched: ' + lwPlaces_(props).map(p => p[0]).join(', '));
+  console.log('Places watched: ' + lwWatched_(props).map(p => p[0]).join(', '));
   console.log('Calls used this month: ' + props.getProperty('LW_USED') + ' / ' + lwCap_(props));
 }
 
@@ -371,6 +433,7 @@ function lightningStatus() {
   const until = Number(props.getProperty('LW_PAUSED_UNTIL') || 0);
   if (until > Date.now()) console.log('Paused (Xweather limit) until ' + Utilities.formatDate(new Date(until), LW.TZ, 'EEE d MMM h:mm a'));
   ['STRIKES', 'TRACKS'].forEach(k => { const m = props.getProperty('LW_XW_MULT_' + k); if (m) console.log(`Cost of one ${k === 'TRACKS' ? 'storm-track' : 'strike'} request (endpoint × time × area): ${m}`); });
+  try { const w = JSON.parse(props.getProperty('LW_WATCH') || 'null'); if (w) Object.keys(LW.REGIONS).forEach(r => console.log(`${LW.REGIONS[r].name} watched: ${w.why[r]} → ` + w.list.filter(p => p[3] === r).map(p => p[0]).join(', '))); } catch (e) {}
   Object.keys(LW.REGIONS).forEach(r => console.log(LW.REGIONS[r].name + (LW.REGIONS[r].suspended ? ' (suspended)' : '') + ': ' + JSON.stringify(lwRegionMeta_(props, r))));
   let log = {}; try { log = JSON.parse(props.getProperty('LW_DAYLOG') || '{}'); } catch (e) {}
   Object.keys(log).sort().slice(-7).forEach(d => console.log(`${d}: ` + Object.keys(log[d]).map(b => `${b === 'tracks' ? 'storm tracks' : (LW.REGIONS[b] ? LW.REGIONS[b].name : b)} ${log[d][b]}`).join(' · ')));
