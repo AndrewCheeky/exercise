@@ -4,7 +4,7 @@
  * Every Sunday at about 6 PM Jamaica time, emails you a summary of the last 7 days:
  *   • visits and page views for islandsoutside.com, active. and marine. (Cloudflare Web Analytics)
  *   • the most-visited island pages, where visitors came from, countries and phone vs computer
- *   • the most-used places from the anonymous place tally (Tally.gs)
+ *   • the most-used places (Active) and fishing banks (Marine) from the anonymous tally (Tally.gs)
  *   • lightning watch: Xweather units used in the last 7 days and this billing cycle (resets on the 9th)
  * It goes to the Google account that owns this script.
  *
@@ -69,10 +69,15 @@ function weeklyReport() {
 
   // ---- Places (anonymous tally) ----
   try {
-    const places = wrTally_(props, 7);
-    parts.push('<h3 style="margin:18px 0 6px">Most-used places</h3>' + (places.length
+    const all = wrTally_(props, 7);
+    const places = all.filter(r => r[0].indexOf(' · Marine · ') < 0).map(r => r.slice(0, 4));
+    const banks = all.filter(r => r[0].indexOf(' · Marine · ') >= 0).map(r => [r[0].split(' · Marine · ')[1]].concat(r.slice(1, 3), r.slice(4, 8)));
+    parts.push('<h3 style="margin:18px 0 6px">Most-used places (Active)</h3>' + (places.length
       ? wrTable_(['Place', 'Opened', 'Picked', 'Mode switches'], places.slice(0, 15))
       : '<p>No place counts yet.</p>'));
+    parts.push('<h3 style="margin:18px 0 6px">Most-viewed banks (Marine)</h3>' + (banks.length
+      ? wrTable_(['Bank', 'Opened', 'Picked', 'Live forecast', 'Hour table', 'Tomorrow', 'Saved'], banks.slice(0, 15))
+      : '<p>No bank counts yet.</p>'));
   } catch (e) { parts.push(`<p><b>Places:</b> ${esc(e.message)}</p>`); }
 
   // ---- Lightning watch (Xweather units) ----
@@ -132,18 +137,18 @@ function wrQuery_(token, account, host, from, to) {
     paths: pairs(a.paths, 'requestPath'), refs: pairs(a.refs, 'refererHost'), countries: pairs(a.countries, 'countryName'), devices: pairs(a.devices, 'deviceType')};
 }
 
-/** Place tally totals for the last N days: [[label, opened, picked, mode], …] most used first. */
+/** Tally totals for the last N days: [[label, opened, picked, mode, live, hours, tmrw, save], …] most used first. */
 function wrTally_(props, days) {
   const since = Utilities.formatDate(new Date(Date.now() - days * 86400000), WR.TZ, 'yyyy-MM-dd');
   const names = {JM: 'Jamaica', KY: 'Cayman', BB: 'Barbados', TT: 'Trinidad', GD: 'Grenada'};
   const totals = {};
-  const add = (t, m, p, c) => { if (t === 'XX') return; const k = `${names[t] || t} · ${m === 'swim' ? 'Swim' : 'Run & Ride'} · ${p}`; const r = totals[k] || [0, 0, 0]; for (let i = 0; i < 3; i++) r[i] += Number(c[i]) || 0; totals[k] = r; };
+  const add = (t, m, p, c) => { if (t === 'XX') return; const k = `${names[t] || t} · ${m === 'swim' ? 'Swim' : m === 'marine' ? 'Marine' : 'Run & Ride'} · ${p}`; const r = totals[k] || [0, 0, 0, 0, 0, 0, 0]; for (let i = 0; i < 7; i++) r[i] += Number(c[i]) || 0; totals[k] = r; };
   const id = props.getProperty('TALLY_SHEET_ID');
   if (id) {
     const sh = SpreadsheetApp.openById(id).getSheetByName('Daily');
-    if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues().forEach(r => {
+    if (sh && sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(7, Math.min(sh.getLastColumn(), 11))).getValues().forEach(r => {
       const day = r[0] instanceof Date ? Utilities.formatDate(r[0], WR.TZ, 'yyyy-MM-dd') : String(r[0]);
-      if (day >= since) add(r[1], r[2], r[3], [r[4], r[5], r[6]]);
+      if (day >= since) add(r[1], r[2], r[3], r.slice(4));
     });
   }
   const d = JSON.parse(props.getProperty('TALLY_TODAY') || '{}');
