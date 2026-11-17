@@ -1,13 +1,16 @@
 /**
  * One Caribbean We Outside – anonymous place tally
  * -------------------------------------------------
- * Counts which places and modes people look at on the Active site, so you can see what is used
- * (e.g. Cherry Gardens, the Grenada beaches) and what to add next.
+ * Counts which places and modes people look at on the Active site, and which fishing banks and
+ * features are used on the Marine site, so you can see what is used and what to add next.
  *
  * What is recorded: island, mode (land = run & ride, swim), place, and the kind of event:
  *   open – the place shown when the page opened (default or the visitor's saved place)
  *   pick – the visitor chose this place from the list
  *   mode – the visitor switched Run & Ride / Swim (counted against the place then shown)
+ * Marine site (mode "marine", place = the bank), also:
+ *   live – opened the live forecast · hours – opened the hour-by-hour table
+ *   tmrw – chose tomorrow's 07:00–17:00 window · save – saved the bank as one of "your banks"
  * Nothing about the person: no IP address, no ID, no cookie, no time of day. Counts are per day.
  *
  * Today's counts are kept in Script Properties; once a day they are written to a Google Sheet
@@ -26,11 +29,11 @@
 
 const TALLY = {
   TZ: 'America/Jamaica',
-  KINDS: ['open', 'pick', 'mode'],
-  MODES: ['land', 'swim'],
+  KINDS: ['open', 'pick', 'mode', 'live', 'hours', 'tmrw', 'save'],
+  MODES: ['land', 'swim', 'marine'],
   MAX_KEYS: 300,                                  // places × modes per day (keeps the property small)
   SHEET_NAME: 'One Caribbean – place tally',
-  HEADER: ['Date', 'Island', 'Mode', 'Place', 'Opened', 'Picked', 'Mode switches'],
+  HEADER: ['Date', 'Island', 'Mode', 'Place', 'Opened', 'Picked', 'Mode switches', 'Live forecast', 'Hour table', 'Tomorrow', 'Saved'],
 };
 
 /** Web app route: GET …/exec?action=tally&t=JM&m=land&p=cherry-gardens&k=pick */
@@ -38,7 +41,7 @@ function tallyHit_(e) {
   const out = ContentService.createTextOutput('ok').setMimeType(ContentService.MimeType.TEXT);
   const q = (e && e.parameter) || {};
   const clean = (v, n) => String(v || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, n);
-  const t = clean(q.t, 2).toUpperCase(), m = clean(q.m, 5), p = clean(q.p, 60), k = clean(q.k, 5);
+  const t = clean(q.t, 2).toUpperCase(), m = clean(q.m, 6), p = clean(q.p, 60), k = clean(q.k, 5);
   if (!/^[A-Z]{2}$/.test(t) || TALLY.MODES.indexOf(m) < 0 || !p || TALLY.KINDS.indexOf(k) < 0) return out;
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return out;
@@ -50,7 +53,8 @@ function tallyHit_(e) {
     d.day = day; d.c = d.c || {};
     const key = [t, m, p].join('|');
     if (!d.c[key] && Object.keys(d.c).length >= TALLY.MAX_KEYS) return out;
-    const row = d.c[key] || [0, 0, 0];
+    const row = d.c[key] || [];
+    while (row.length < TALLY.KINDS.length) row.push(0);
     row[TALLY.KINDS.indexOf(k)]++;
     d.c[key] = row;
     props.setProperty('TALLY_TODAY', JSON.stringify(d));
@@ -69,7 +73,8 @@ function tallyFlush_(props, d) {
   const keys = Object.keys((d && d.c) || {});
   if (!d.day || !keys.length) return;
   const sh = tallySheet_(props);
-  const rows = keys.sort().map(key => { const [t, m, p] = key.split('|'); const c = d.c[key]; return [d.day, t, m, p, c[0], c[1], c[2]]; });
+  if (sh.getLastColumn() < TALLY.HEADER.length) sh.getRange(1, 1, 1, TALLY.HEADER.length).setValues([TALLY.HEADER]).setFontWeight('bold');
+  const rows = keys.sort().map(key => { const [t, m, p] = key.split('|'); const c = d.c[key]; return [d.day, t, m, p].concat(TALLY.KINDS.map((k, i) => Number(c[i]) || 0)); });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, TALLY.HEADER.length).setValues(rows);
 }
 
@@ -123,14 +128,16 @@ function tallyReport(days) {
   const props = PropertiesService.getScriptProperties();
   const since = Utilities.formatDate(new Date(Date.now() - days * 86400000), TALLY.TZ, 'yyyy-MM-dd');
   const totals = {};
-  const add = (t, m, p, c) => { if (t === 'XX') return; const key = `${t} · ${m === 'swim' ? 'Swim' : 'Run & Ride'} · ${p}`; const r = totals[key] || [0, 0, 0]; for (let i = 0; i < 3; i++) r[i] += Number(c[i]) || 0; totals[key] = r; };
+  const n = TALLY.KINDS.length;
+  const add = (t, m, p, c) => { if (t === 'XX') return; const key = `${t} · ${m === 'swim' ? 'Swim' : m === 'marine' ? 'Marine' : 'Run & Ride'} · ${p}`; const r = totals[key] || Array(n).fill(0); for (let i = 0; i < n; i++) r[i] += Number(c[i]) || 0; totals[key] = r; };
   const sh = tallySheet_(props);
-  const vals = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, TALLY.HEADER.length).getValues() : [];
-  vals.forEach(r => { const day = r[0] instanceof Date ? Utilities.formatDate(r[0], TALLY.TZ, 'yyyy-MM-dd') : String(r[0]); if (day >= since) add(r[1], r[2], r[3], [r[4], r[5], r[6]]); });
+  const cols = Math.max(7, Math.min(sh.getLastColumn(), TALLY.HEADER.length));
+  const vals = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, cols).getValues() : [];
+  vals.forEach(r => { const day = r[0] instanceof Date ? Utilities.formatDate(r[0], TALLY.TZ, 'yyyy-MM-dd') : String(r[0]); if (day >= since) add(r[1], r[2], r[3], r.slice(4)); });
   const d = tallyToday_(props);
   Object.keys(d.c || {}).forEach(key => { const [t, m, p] = key.split('|'); add(t, m, p, d.c[key]); });
   const list = Object.keys(totals).map(k => [k].concat(totals[k])).sort((a, b) => (b[1] + b[2]) - (a[1] + a[2]));
-  console.log(`Last ${days} days – opened / picked / mode switches (most used first):`);
-  list.slice(0, 60).forEach(r => console.log(`${r[0]}: ${r[1]} / ${r[2]} / ${r[3]}`));
+  console.log(`Last ${days} days – opened / picked / mode switches · marine: live / hours / tomorrow / saved (most used first):`);
+  list.slice(0, 60).forEach(r => console.log(`${r[0]}: ${r[1]} / ${r[2]} / ${r[3]}` + (r[0].indexOf('Marine') >= 0 ? ` · ${r[4]} / ${r[5]} / ${r[6]} / ${r[7]}` : '')));
   if (!list.length) console.log('No counts yet.');
 }
