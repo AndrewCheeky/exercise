@@ -117,17 +117,21 @@ async function loadLocations() {
   });
 }
 
+// Open-Meteo sometimes can't be reached for a few minutes (connect timeouts), so keep trying for
+// about 8 minutes before giving up: waits of 5 s, 15 s, 30 s, then 1, 2 and 4 minutes.
+const RETRY_WAITS = [5, 15, 30, 60, 120, 240];
 async function getJson(url, label) {
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  const tries = RETRY_WAITS.length + 1;
+  for (let attempt = 1; attempt <= tries; attempt++) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, {signal: AbortSignal.timeout(60000)});
       if (res.ok) return res.json();
       console.warn(`${label}: HTTP ${res.status} (attempt ${attempt})`);
       if (res.status === 400) throw Error(`${label} rejected the request: ${await res.text()}`);
-    } catch (e) { if (attempt === 4 || /rejected/.test(e.message)) throw e; console.warn(`${label}: ${e.message} (attempt ${attempt})`); }
-    await new Promise(r => setTimeout(r, 4000 * attempt));
+    } catch (e) { if (attempt === tries || /rejected/.test(e.message)) throw e; console.warn(`${label}: ${e.message} (attempt ${attempt})`); }
+    if (attempt < tries) await new Promise(r => setTimeout(r, RETRY_WAITS[attempt - 1] * 1000));
   }
-  throw Error(`${label}: no response after 4 attempts`);
+  throw Error(`${label}: no response after ${tries} attempts`);
 }
 
 const HOURLY = ['temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'apparent_temperature', 'precipitation_probability',
