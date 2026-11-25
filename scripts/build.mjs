@@ -6,6 +6,7 @@ import {resolve} from 'node:path';
 import {createSign} from 'node:crypto';
 import {windowStats, goIndex, runScore, advice, band, aqiCategory, wbgtProxy, healthNotes} from './index-rules.mjs';
 import {marineWindow, seaScore, poolScore} from './swim-rules.mjs';
+import {moonForDay, nextFullMoon} from './moon.mjs';
 
 const TZ = 'America/Jamaica';
 const OUT = resolve(process.env.OUTPUT_DIR || '_site');
@@ -201,7 +202,8 @@ function swimLocation(loc, w, mar, today) {
   if (loc.type === 'sea' && !mh) console.warn('NO SEA FORECAST for', loc.name);
   const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map(day => {
     const sunIdx = w.daily.time.indexOf(day);
-    const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day, mh)};
+    const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null,
+      moon: moonForDay(day, (TERRITORIES[loc.territory] && TERRITORIES[loc.territory].tz) || TZ, loc.lat, loc.lon), windows: {}, hourly: hourlyForDay(w.hourly, day, mh)};
     for (const r of entry.hourly) {
       const hr = Number(r.t.slice(0, 2)), m1 = windowStats(w.hourly, day, hr, hr);
       if (!m1.hasData) continue;
@@ -277,7 +279,8 @@ async function main() {
     if (loc.sport === 'swim') { result.locations.push(swimLocation(loc, w, marine[li], today)); return; }
     const days = (w.daily?.time || []).filter(d => d >= today).slice(0, DAYS).map((day, di) => {
       const sunIdx = w.daily.time.indexOf(day);
-      const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null, windows: {}, hourly: hourlyForDay(w.hourly, day)};
+      const entry = {date: day, sunrise: w.daily.sunrise?.[sunIdx]?.slice(11, 16) || null, sunset: w.daily.sunset?.[sunIdx]?.slice(11, 16) || null,
+        moon: moonForDay(day, tzOf(loc), loc.lat, loc.lon), windows: {}, hourly: hourlyForDay(w.hourly, day)};
       // A score for every hour (4 AM–8 PM) for the hour-by-hour strip.
       for (const r of entry.hourly) {
         const hr = Number(r.t.slice(0, 2)), mh1 = windowStats(w.hourly, day, hr, hr);
@@ -308,7 +311,10 @@ async function main() {
   const mainKeys = new Set();
   for (const [code, t] of Object.entries(TERRITORIES)) {
     const locsT = result.locations.filter(l => (l.territory || 'JM') === code);
-    await writeFile(resolve(OUT, 'data', code.toLowerCase() + '.json'), JSON.stringify({...result, locations: locsT}));
+    const main0 = (t.defaultPlace && locsT.find(l => l.key === t.defaultPlace)) || locsT[0];
+    // Next full moon for the island (for planning full-moon runs and rides), from its main place.
+    const moonNext = main0 ? nextFullMoon(todayIn(t.tz || TZ), t.tz || TZ, main0.lat, main0.lon) : null;
+    await writeFile(resolve(OUT, 'data', code.toLowerCase() + '.json'), JSON.stringify({...result, moonNext, locations: locsT}));
     const main = (t.defaultPlace && locsT.find(l => l.key === t.defaultPlace && l.sport !== 'swim')) || locsT.find(l => l.sport !== 'swim');
     if (main) mainKeys.add(code + '|' + main.key);
     const brief = s => s ? {index: s.index, band: s.band, advice: s.advice} : null;
