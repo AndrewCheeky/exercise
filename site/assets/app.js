@@ -554,7 +554,7 @@
     const fm = data.moonNext, lg = document.querySelector('.legend');
     if (fm && lg && !$('fullmoon')) {
       const today = jaNow().date, when = fm.date === today ? 'Tonight' : dayName(fm.date, {weekday: 'short', day: 'numeric', month: 'short'});
-      lg.after(el('p', {class: 'fullmoon', id: 'fullmoon'}, moonPic({lit: 100, waxing: true}, 16), el('b', {}, 'Next full moon: '), `${when}${fm.rise ? ' · moon rises ' + clock(fm.rise) : ''}`));
+      lg.after(el('p', {class: 'fullmoon', id: 'fullmoon'}, moonPic({lit: 100, waxing: true}, 16), el('b', {}, 'Next full moon: '), `${when}${fm.time ? ' at ' + clock(fm.time) : ''}${fm.rise ? ' · moon rises ' + clock(fm.rise) : ''}`));
     }
     render();
     tally('open');
