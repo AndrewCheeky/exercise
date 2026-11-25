@@ -37,6 +37,7 @@
     flask: P('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7 15h10"/>'),
     float: P('<rect x="7" y="3" width="10" height="15" rx="5"/><path d="M12 18v3M9 9h6"/>'),
     smile: P('<circle cx="12" cy="12" r="9"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>'),
+    moon: P('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
   };
   const icon = name => { const s = document.createElement('span'); s.className = 'ico'; s.innerHTML = ICONS[name] || ''; return s; };
   document.querySelectorAll('[data-icon]').forEach(n => { n.innerHTML = ICONS[n.dataset.icon] || ''; });
@@ -119,6 +120,54 @@
     return out.slice(0, 3);
   }
 
+  // ---------- Moon ----------
+  // A small picture of the moon's phase: lit fraction f, lit on the right while waxing, on the left while waning.
+  const moonPic = (mo, size = 14) => {
+    const f = mo.lit / 100, k = (Math.abs(2 * f - 1) * 10).toFixed(2), waning = !mo.waxing;
+    const outer = waning ? 0 : 1, inner = (f > .5) === waning ? 0 : 1;
+    const s = document.createElement('span'); s.className = 'moonpic'; s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><circle cx="12" cy="12" r="10" class="m-dark"/>` +
+      (f > .01 ? `<path d="M12 2A10 10 0 0 ${outer} 12 22A${k} 10 0 0 ${inner} 12 2Z" class="m-lit"/>` : '') +
+      `<circle cx="12" cy="12" r="10" class="m-edge"/></svg>`;
+    return s;
+  };
+  const MOON_NOTE = 65;   // moon notes only on nights at least this lit
+  // Is the moon above the horizon at hour h, from that day's rise and set times?
+  const moonUp = (mo, h) => {
+    const r = mo.rise ? hours(mo.rise) : null, st = mo.set ? hours(mo.set) : null;
+    if (r != null && st != null) return r < st ? h >= r && h < st : h >= r || h < st;
+    if (r != null) return h >= r;
+    if (st != null) return h < st;
+    return false;
+  };
+  // One friendly moon line for a window, or null (dim moon, or not up when it matters).
+  function moonTip(key, w, day, next) {
+    const mo = day.moon, m = (w && w.metrics) || {};
+    if (!mo || mo.lit < MOON_NOTE) return null;
+    const win = WIN[key], cloud = m.cloud ?? 0, lit = `${mo.lit}% lit`;
+    const sky = cloud >= 60 ? ` But cloud (${cloud}%) may hide it.` : cloud < 30 && mo.lit >= 90 ? ' Skies look clear.' : '';
+    if (key === 'am') {
+      if (!moonUp(mo, win.start) && !moonUp(mo, win.start + 1)) return null;
+      const st = mo.set && hours(mo.set) > win.start && hours(mo.set) <= win.end + 1 ? `until it sets at ${clock(mo.set)}` : 'through the morning window';
+      return {text: `Bright moon (${lit}) ${st}. Roads are easier to see before sunrise. Lights still on.${sky}`, line: `Moon ${mo.lit}%`};
+    }
+    const sunset = hours(day.sunset), r = mo.rise ? hours(mo.rise) : null;
+    if (r != null && mo.phase === 'Full moon' && mo.lit >= 98 && Math.abs(r - sunset) <= 1)
+      return {text: `<b>Full-moon run tonight.</b> The full moon rises ${clock(mo.rise)}, around sunset. Bright light after dark. Still wear lights.${sky}`, line: `Moonrise ${clock(mo.rise)}`};
+    if (r != null && r >= win.start - 1 && r <= win.end) return {text: `Moon rises ${clock(mo.rise)}, ${lit}. Brighter roads after sunset. Still wear lights.${sky}`, line: `Moonrise ${clock(mo.rise)}`};
+    if (r != null && r > win.end && r <= win.end + 1.5) return {text: `Moon rises ${clock(mo.rise)}, ${lit}, just after this window. A later start gets a moonlit run.${sky}`, line: `Moonrise ${clock(mo.rise)}`};
+    if (moonUp(mo, sunset)) return {text: `A ${lit} moon is already up and lights the way after sunset${mo.set && hours(mo.set) > sunset ? ` until ${clock(mo.set)}` : ''}. Still wear lights.${sky}`, line: `Moon ${mo.lit}%`};
+    return null;
+  }
+  // Moon tiles for "More details": % lit and phase, then moonset (morning) or moonrise (evening).
+  function moonTiles(key, day, next) {
+    const mo = day.moon; if (!mo) return [];
+    const t = (label, value, sub) => { const n = stat('moon', label, value, sub, 'moon'); n.querySelector('.ico').replaceWith(moonPic(mo, 22)); return n; };
+    return [t('Moon', `${mo.lit}%`, mo.phase.toLowerCase()),
+      key === 'am' ? t('Moonset', clock(mo.set), mo.rise ? `rises ${clock(mo.rise)} tonight` : '')
+        : t('Moonrise', clock(mo.rise), next && next.moon && next.moon.set ? `sets ${clock(next.moon.set)} tomorrow` : '')];
+  }
+
   function hero() {
     const L = loc(); if (!L) return;
     const now = jaNow();
@@ -182,7 +231,8 @@
       const b = el('button', {type: 'button', class: 'day', 'aria-pressed': String(i === dayIdx), 'aria-label': `${dayName(d.date, {weekday: 'long', day: 'numeric', month: 'long'})}`},
         el('b', {}, d.date === today ? 'Today' : dayName(d.date, {weekday: 'short'})),
         el('small', {}, dayName(d.date, {day: 'numeric', month: 'short'})),
-        el('span', {class: 'dots'}, dot('am'), dot('pm')));
+        el('span', {class: 'dots'}, dot('am'), dot('pm')),
+        d.moon ? el('span', {class: 'moonmini', title: `Moon ${d.moon.lit}% lit, ${d.moon.phase.toLowerCase()}`}, moonPic(d.moon), `${d.moon.lit}%`) : null);
       b.addEventListener('click', () => { dayIdx = i; amOpen = false; render(); });
       return b;
     }));
@@ -294,10 +344,12 @@
     if (mode === 'swim') return swimCard(key, w, day, head);
     if (!s || !m) return el('article', {class: 'win'}, el('div', {class: 'win-top'}, head), el('p', {class: 'why'}, 'No forecast for this window yet.'));
     FLAG = flaggedTiles(s.reasons);
-    return el('article', {class: 'win ' + s.band},
+    const L = loc(), next = L && L.days[L.days.indexOf(day) + 1], mt = moonTip(key, w, day, next);
+    const tipList = tips(key, w, day); if (mt) tipList.push(['moon', mt.text]);
+    const art = el('article', {class: 'win ' + s.band},
       el('div', {class: 'win-top'}, head, ring(s.index, s.band, 64)),
       el('p', {class: 'verdict'}, `${WORD[s.band]} · ${s.advice}`),
-      el('ul', {class: 'tips'}, tips(key, w, day).map(([ic, t]) => el('li', {}, icon(ic), el('span', {}, t)))),
+      el('ul', {class: 'tips'}, tipList.map(([ic, t]) => { const sp = el('span', {}); if (ic === 'moon') sp.innerHTML = t; else sp.textContent = t; return el('li', {class: ic === 'moon' ? 'moon-tip' : null}, icon(ic), sp); })),
       healthBox(w.health),
       s.reasons.length ? el('p', {class: 'why'}, el('b', {}, 'Why this score: '), s.reasons.join(' · '), FLAG.size ? el('span', {class: 'flag-key'}, 'Shaded tiles below lowered the score.') : null) : null,
       ...statGrid('land', [
@@ -308,7 +360,10 @@
         stat('wind', 'Wind', `${m.windKmh} km/h`, m.windGustKmh != null ? `gusts ${m.windGustKmh}` : '', 'wind'),
         windDir(m.windDirDeg),
         stat('sun', 'UV', m.uvEffective ?? '—', m.cloud != null ? `${m.cloud}% cloud` : '', 'uv'),
-        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air')]));
+        stat('leaf', 'Air', w.air && w.air.hasData ? w.air.category : '—', w.air && w.air.hasData ? `AQI ${w.air.aqi}` : '', 'air'),
+        ...moonTiles(key, day, next)]));
+    const sl = art.querySelector('.stat-line'); if (mt && sl) sl.textContent += ' · ' + mt.line;
+    return art;
   }
 
   // ---------- Swim cards ----------
@@ -496,6 +551,11 @@
     const gen = new Date(data.generatedAt);
     $('updated').textContent = 'Updated ' + new Intl.DateTimeFormat('en-US', {timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit'}).format(gen);
     if (Date.now() - gen.getTime() > 13 * 3600e3) { $('stale').textContent = '⚠ This forecast is more than 13 hours old. The latest update may have failed.'; $('stale').hidden = false; }
+    const fm = data.moonNext, lg = document.querySelector('.legend');
+    if (fm && lg && !$('fullmoon')) {
+      const today = jaNow().date, when = fm.date === today ? 'Tonight' : dayName(fm.date, {weekday: 'short', day: 'numeric', month: 'short'});
+      lg.after(el('p', {class: 'fullmoon', id: 'fullmoon'}, moonPic({lit: 100, waxing: true}, 16), el('b', {}, 'Next full moon: '), `${when}${fm.rise ? ' · moon rises ' + clock(fm.rise) : ''}`));
+    }
     render();
     tally('open');
   }

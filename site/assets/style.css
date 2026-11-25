@@ -379,3 +379,11 @@ a{color:var(--orange)}
   .win:not(.open) .stats.none-flagged{display:none}
   .win:not(.open) .stat-line{display:block;margin:0;padding:11px 16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-2);line-height:1.45}
 }
+
+/* Moon: % lit under each day, the next full moon, and moon tiles */
+.moonpic{display:inline-flex;vertical-align:-2px}
+.moonpic .m-dark{fill:#2a3142}.moonpic .m-lit{fill:#f4d35e}.moonpic .m-edge{fill:none;stroke:#8a93a6;stroke-width:1}
+.day .moonmini{display:flex;justify-content:center;align-items:center;gap:3px;margin-top:6px;font-size:11px;color:var(--muted);white-space:nowrap}
+.day[aria-pressed="true"] .moonmini{color:inherit;opacity:.85}
+.fullmoon{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-size:13px;color:var(--muted)}
+.fullmoon b{color:var(--ink,inherit);font-weight:600}
