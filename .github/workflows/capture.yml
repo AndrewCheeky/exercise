@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install playwright && python -m playwright install --with-deps chromium
-      - run: python scripts/capture_video.py out
+      - run: python scripts/capture_swim.py out
       - name: Push frames to video-frames branch
         run: |
           cd out && git init -q && git checkout -q -b video-frames && git add -A
