@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-territory="BB" data-tz="America/Barbados">
+<head>
+<meta charset="utf-8">
+<base href="../">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Barbados We Outside | Your best time to run, walk, ride or swim</title>
+<meta name="description" content="Your best time to run, walk, ride or swim around Barbados: friendly morning and evening forecasts for heat, rain, storms, sun and air quality.">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f2a6b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="assets/style.css?v=3.21.0">
+</head>
+<body>
+<header class="hero">
+  <img class="hero-art" src="assets/hero.jpg" srcset="assets/hero-900.jpg 900w, assets/hero.jpg 1800w" sizes="100vw" alt="A cyclist in a helmet stops for a drink of water on a hilltop path">
+  <div class="hero-shade" aria-hidden="true"></div>
+  <div class="wrap hero-top">
+    <div class="brand-stack">
+      <a class="brand" href="barbados/" aria-label="Barbados We Outside home"><img class="brand-flag" src="assets/flags/bb.svg" alt="" aria-hidden="true"><span>BARBADOS <i>WE</i> <b>OUTSIDE</b></span></a>
+      <a class="home-link" href="https://islandsoutside.com/"><img src="favicon.png" alt="" aria-hidden="true" width="22" height="22"><span>One Caribbean home</span></a>
+    </div>
+    <div class="sport" id="mode" role="group" aria-label="Activity">
+      <button type="button" data-mode="land" aria-pressed="true"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l3 7h-3M14 6h2"/></svg></span>Run &amp; Ride</button>
+      <button type="button" data-mode="swim" aria-pressed="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18c2 0 2-1.5 4-1.5S8 18 10 18s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><circle cx="16.5" cy="7.5" r="2"/><path d="M5 14.5 10 9l3 2.5 2-2"/></svg></span>Swim</button>
+    </div>
+  </div>
+  <div class="wrap hero-body">
+    <p class="greeting" id="greeting">Hello</p>
+    <h1 id="headline">Finding your best time to get out…</h1>
+    <div class="next" id="next" hidden></div>
+    <label class="place">
+      <span class="ico" data-icon="pin"></span>
+      <span class="sr-only">Place</span>
+      <select id="place" aria-label="Place"></select>
+    </label>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="newhere" id="newhere" role="note" hidden><span class="nh-ico" aria-hidden="true">?</span><div><p><b>New here?</b> Each morning and evening gets a score out of 10.</p><div class="nh-scale"><span class="pill go">7–10 Go</span><span class="pill caution">5–6 Take care</span><span class="pill avoid">0–4 Skip it</span></div></div><button type="button" id="newhere-ok">Got it</button></div>
+  <p class="banner" id="stale" hidden></p>
+  <section class="lightning" id="lightning" aria-live="polite" hidden></section>
+
+  <section class="section">
+    <div class="section-head">
+      <h2>This week</h2>
+      <p class="updated" id="updated">Loading…</p>
+    </div>
+    <nav class="days" id="days" aria-label="Choose a day"></nav>
+    <p class="legend">Left: morning · right: evening · tap a day for details</p>
+  </section>
+
+  <section class="windows" id="windows" aria-live="polite"></section>
+
+  <section class="hstrip" id="hstrip" aria-label="Score for each hour" hidden></section>
+
+  <details class="hourly">
+    <summary><span class="ico" data-icon="clock"></span>Hour-by-hour details</summary>
+    <div class="table-scroll"><table id="hourly"></table></div>
+  </details>
+
+  <section class="explain">
+    <h2>How we rate your window</h2>
+    <div class="scale">
+      <span class="pill go">7–10 Go</span><span class="pill caution">5–6 Take care</span><span class="pill avoid">0–4 Skip it</span>
+    </div>
+    <p id="explain-1">Each window starts at 10 and loses points for heat, rain, thunderstorms, muggy heat, strong sun, gusts, wet roads and poor air quality. Humidity only counts with heat (80% from 28°C, 85% from 30°C), and humidity, dew point and heat stress share one penalty so they don't stack. Thunderstorms or dangerous heat cap it at 4. Separate notes appear for people with asthma or heart conditions; they don't change the score.</p>
+    <p id="explain-2">Morning window 4:30–7:00 AM, evening window 4:30–6:30 PM, Jamaica time.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-brand"><img class="brand-flag" src="assets/flags/bb.svg" alt="" aria-hidden="true"><span><strong>Barbados We Outside</strong><small>Run · Ride · Swim</small></span></div>
+    <p>Forecast guidance only. Listen to your body, carry water, and be seen.</p>
+    <p class="foot-links"><a href="https://islandsoutside.com/">One Caribbean home</a> · <a href="credits.html">Credits</a> · <a href="privacy.html">Privacy</a> · <a href="how-it-works.html">How this site works</a></p>
+    <p class="islands">Other islands: <a href="./">Jamaica</a> · <a href="cayman/">Cayman Islands</a> · <a href="trinidad/">Trinidad and Tobago</a> · <a href="grenada/">Grenada</a></p>
+    <p class="foot-copy">© One Caribbean We Outside</p>
+  </div>
+</footer>
+<!-- Lightning watch: set data-url to the Wx-Exercise5day web app URL + ?action=lightning to switch it on. -->
+<script src="assets/lightning.js?v=3.22.0" data-tally="on" data-url="https://script.google.com/macros/s/AKfycbyFY483SYd2P772OZbtMiMTD6CUUuTwLFsJBm2GLxmxmZk2uBm9oUr2N2emOf41L1_CTw/exec?action=lightning"></script>
+<script src="assets/app.js?v=3.21.0"></script>
+<!-- Cloudflare Web Analytics: anonymous visit counts, no cookies --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "e4891c7c4a344222b910ba16aee61b2a"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
