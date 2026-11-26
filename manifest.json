@@ -1,0 +1,59 @@
+[
+ {
+  "name": "s1-hero",
+  "caption": "Switch to Swim: your best time in the water today.",
+  "tap": [
+   314.0,
+   121.8
+  ],
+  "hold": 4.0,
+  "new": false
+ },
+ {
+  "name": "s2-card",
+  "caption": "Score out of 10 for each swim window, with safety notes.",
+  "tap": [
+   366.0,
+   60.2
+  ],
+  "hold": 4.0,
+  "new": false
+ },
+ {
+  "name": "s3-details",
+  "caption": "Waves, swell period, rip risk, wind, water temperature and water quality.",
+  "tap": [
+   216.0,
+   611.7
+  ],
+  "hold": 4.0,
+  "new": false
+ },
+ {
+  "name": "s4-hourly",
+  "caption": "Score by the hour: pick the calmest time.",
+  "tap": [
+   123.0,
+   188.0
+  ],
+  "hold": 4.0,
+  "new": false
+ },
+ {
+  "name": "s5-pool",
+  "caption": "Pool swimmers: thunder, showers, deck heat and sun.",
+  "tap": null,
+  "hold": 4.0,
+  "new": false
+ },
+ {
+  "name": "s6-week",
+  "caption": "Plan the week: tap a day to see its swim windows.",
+  "tap": [
+   157.7,
+   106.0
+  ],
+  "hold": 4.0,
+  "new": false
+ }
+]
